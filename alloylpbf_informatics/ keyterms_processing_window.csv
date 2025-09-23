@@ -1,29 +1,29 @@
-KeyTerm
-laser power
-scanning speed
-hatch spacing
-layer thickness
-laser processing
-additive manufacturing
-laser powder bed fusion
-LPBF
-hierarchical microstructure
-dislocation cells
-nanoprecipitation
-high-entropy alloy
-HEA
-MPEA
-multi-principal element alloy
-columnar grains
-melt pools
-elemental segregation
-Cr2O3 nanoparticles
-strength-ductility synergy
-work hardening
-deformation twins
-laser
-microstructure
-alloy
-mechanical properties
-fabrication
-processing
+KeyTerm,ExampleValueAndUnit
+laser power,220-420 W
+scanning speed,450-1350 mm/s
+hatch spacing,90 μm
+layer thickness,50 μm
+laser processing,N/A (general process term)
+additive manufacturing,N/A (general process term)
+laser powder bed fusion,N/A (specific process term, e.g., LPBF)
+LPBF,N/A (abbreviation for laser powder bed fusion)
+hierarchical microstructure,N/A (describes structure with melt pools, columnar grains, etc.)
+dislocation cells,N/A (microstructural feature)
+nanoprecipitation,N/A (e.g., Cr2O3 nanoparticles observed)
+high-entropy alloy,N/A (material class, e.g., CoCrFeNi)
+HEA,N/A (abbreviation for high-entropy alloy)
+MPEA,N/A (abbreviation for multi-principal element alloy)
+multi-principal element alloy,N/A (material class, e.g., CoCrFeNi)
+columnar grains,N/A (microstructural feature)
+melt pools,N/A (microstructural feature in LPBF)
+elemental segregation,N/A (microstructural phenomenon)
+Cr2O3 nanoparticles,N/A (specific nanoparticle type)
+strength-ductility synergy,200% yield strength increase (compared to conventional HEAs)
+work hardening,N/A (mechanical behavior)
+deformation twins,N/A (microstructural feature)
+laser,N/A (general term, e.g., Yb-fiber laser, 500 W max)
+microstructure,N/A (general term for material structure)
+alloy,N/A (general term for material)
+mechanical properties,N/A (e.g., strength, ductility)
+fabrication,N/A (general process term)
+processing,N/A (general process term)

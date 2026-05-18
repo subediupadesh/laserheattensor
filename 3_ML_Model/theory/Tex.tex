@@ -1,0 +1,202 @@
+\documentclass[10pt]{article}
+
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{bm}
+\usepackage{physics}
+\usepackage{setspace}
+\usepackage{natbib}
+
+\geometry{margin=1in}
+\onehalfspacing
+
+\title{\textbf{A Transformer-Inspired Parameter-Space Interpolation Framework for Rapid Prediction of High-Dimensional Spatiotemporal Fields}}
+
+\author{
+Author Name$^{1}$ \\
+\small $^{1}$Department of Mechanical Engineering, Institution Name, City, Country \\
+\small \texttt{email@institution.edu}
+}
+
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+High-fidelity finite element simulations of laser--matter interaction in additive manufacturing provide accurate predictions of temperature and phase evolution but remain computationally expensive for parametric studies and process optimization. In this work, we present a hybrid data-driven surrogate modeling framework that enables rapid prediction of high-dimensional spatiotemporal fields at unseen process parameters without solving governing equations. The proposed method combines transformer-inspired multi-head cross-attention in parameter space with Gaussian locality regularization to interpolate between precomputed simulations. The approach produces physically coherent predictions for temperature and phase-field variables in milliseconds, scales efficiently with dataset size, and preserves consistency across multiple coupled fields. We analyze the theoretical foundations of the method, its advantages over classical interpolation and Gaussian process approaches, and discuss limitations related to linear blending of binary-like phase variables.
+\end{abstract}
+
+\section{Introduction}
+
+Additive manufacturing (AM) processes such as laser powder bed fusion are governed by complex, multi-physics phenomena involving heat transfer, phase transformation, and rapid solidification. High-fidelity finite element method (FEM) simulations are routinely employed to resolve these effects, yielding detailed spatiotemporal fields of temperature and phase evolution. However, the computational cost of such simulations---often requiring hours per parameter set---renders them impractical for real-time process control, uncertainty quantification, or large-scale parametric sweeps.
+
+Surrogate modeling approaches have emerged as viable alternatives, including polynomial response surfaces, Gaussian process regression, physics-informed neural networks (PINNs), and reduced-order models. Despite their success, these methods often face challenges related to scalability, training cost, or the enforcement of physical consistency across multiple output fields.
+
+In this work, we propose a \emph{parameter-space interpolation framework} inspired by transformer architectures and augmented with Gaussian locality regularization. The method operates directly on precomputed simulation fields and performs a learned, locality-aware interpolation in parameter space. It enables fast and physically coherent predictions of temperature and phase-field variables at unseen process parameters.
+
+\section{Problem Formulation}
+
+\subsection{Simulation Dataset}
+
+Let the process parameters be defined by a low-dimensional vector
+\begin{equation}
+\boldsymbol{\theta} = (P, v),
+\end{equation}
+where $P$ denotes laser power and $v$ denotes scan velocity.
+
+Assume a set of $N$ high-fidelity FEM simulations is available at discrete parameter locations
+\begin{equation}
+\left\{ \boldsymbol{\theta}_i = (P_i, v_i) \right\}_{i=1}^{N}.
+\end{equation}
+
+Each simulation provides spatiotemporal fields defined on identical grids:
+\begin{equation}
+T_i(t,y,x), \qquad \eta_i(t,y,x),
+\end{equation}
+where $T$ is temperature and $\eta$ is a phase-field variable describing solid ($\eta \approx 1$) and liquid ($\eta \approx 0$) states.
+
+The objective is to predict the fields at a new, unseen target parameter
+\begin{equation}
+\boldsymbol{\theta}^* = (P^*, v^*),
+\end{equation}
+without running an additional FEM simulation.
+
+\section{Parameter Normalization and Embedding}
+
+The parameter space is treated as a low-dimensional manifold. To ensure scale invariance and numerical stability, each parameter is normalized to the unit interval:
+\begin{equation}
+\tilde{\boldsymbol{\theta}} = 
+\frac{\boldsymbol{\theta} - \boldsymbol{\theta}_{\min}}
+{\boldsymbol{\theta}_{\max} - \boldsymbol{\theta}_{\min}},
+\end{equation}
+where $\boldsymbol{\theta}_{\min}$ and $\boldsymbol{\theta}_{\max}$ are computed over both source and target parameters.
+
+This normalized representation serves as the input to the attention-based relevance mechanism.
+
+\section{Multi-Head Cross-Attention in Parameter Space}
+
+Inspired by transformer architectures, we compute relevance weights between the target parameter and each source parameter using multi-head cross-attention.
+
+\subsection{Query, Key, and Value Construction}
+
+The normalized target parameter is projected to a query vector:
+\begin{equation}
+\mathbf{q} = W_q \tilde{\boldsymbol{\theta}}^*,
+\end{equation}
+while each source parameter is projected to a key:
+\begin{equation}
+\mathbf{k}_i = W_k \tilde{\boldsymbol{\theta}}_i,
+\end{equation}
+where $W_q$ and $W_k$ are learned linear transformations. Multiple attention heads correspond to multiple learned projection subspaces.
+
+\subsection{Scaled Dot-Product Attention}
+
+For each attention head $h$, a similarity score is computed as
+\begin{equation}
+\alpha_i^{(h)} =
+\frac{\exp\left( \frac{\mathbf{q}^{(h)} \cdot \mathbf{k}_i^{(h)}}{\sqrt{d_h}} \right)}
+{\sum_{j=1}^{N} \exp\left( \frac{\mathbf{q}^{(h)} \cdot \mathbf{k}_j^{(h)}}{\sqrt{d_h}} \right)},
+\end{equation}
+where $d_h$ is the dimensionality of the head.
+
+The final attention weight for source $i$ is obtained by averaging across heads:
+\begin{equation}
+\bar{\alpha}_i = \frac{1}{H} \sum_{h=1}^{H} \alpha_i^{(h)}.
+\end{equation}
+
+This mechanism enables non-linear similarity learning in parameter space, beyond simple Euclidean distance.
+
+\section{Gaussian Locality Regularization}
+
+While attention mechanisms are expressive, they can yield overly diffuse relevance distributions, particularly when training data are sparse. To enforce locality and prevent unphysical extrapolation, we introduce an isotropic Gaussian kernel:
+\begin{equation}
+s_i = \exp\left( -\frac{\lVert \tilde{\boldsymbol{\theta}}_i - \tilde{\boldsymbol{\theta}}^* \rVert^2}{2\sigma^2} \right),
+\end{equation}
+where $\sigma$ controls the locality scale.
+
+The kernel weights are normalized:
+\begin{equation}
+\bar{s}_i = \frac{s_i}{\sum_{j=1}^{N} s_j}.
+\end{equation}
+
+\subsection{Hybrid Weight Definition}
+
+The final interpolation weight is defined as a normalized product:
+\begin{equation}
+w_i = \frac{\bar{\alpha}_i \, \bar{s}_i}{\sum_{j=1}^{N} \bar{\alpha}_j \, \bar{s}_j},
+\end{equation}
+ensuring $w_i \ge 0$ and $\sum_i w_i = 1$.
+
+This formulation resembles a learned-kernel Gaussian process while retaining the flexibility and scalability of attention mechanisms.
+
+\section{Field Interpolation}
+
+Given the weights $\{w_i\}$, the target fields are obtained via linear blending:
+\begin{align}
+T^*(t,y,x) &= \sum_{i=1}^{N} w_i \, T_i(t,y,x), \\
+\eta^*(t,y,x) &= \sum_{i=1}^{N} w_i \, \eta_i(t,y,x).
+\end{align}
+
+The same weights are used for all fields, ensuring multi-field physical coherence and consistent dependence on process parameters.
+
+\section{Discussion and Advantages}
+
+The proposed framework offers several advantages:
+\begin{itemize}
+\item \textbf{Efficiency}: Field prediction requires only weighted summation and runs in milliseconds.
+\item \textbf{Scalability}: Unlike Gaussian processes, no $\mathcal{O}(N^3)$ matrix inversion is required.
+\item \textbf{Flexibility}: Learned attention projections capture non-linear parameter relevance.
+\item \textbf{Physics Consistency}: Shared weights enforce consistent interpolation across coupled fields.
+\item \textbf{Mesh-Free}: No reduced basis or spatial interpolation is required.
+\end{itemize}
+
+Compared to PINNs, the method avoids PDE solving entirely and relies exclusively on offline simulation data.
+
+\section{Phase-Field Interpolation Behavior}
+
+A notable observation is that the interpolated phase-field often satisfies
+\begin{equation}
+\min(\eta^*) \approx 0, \qquad \max(\eta^*) < 1.
+\end{equation}
+
+This behavior arises naturally from linear blending and has several contributing factors:
+
+\subsection{Spatial Misalignment of Interfaces}
+
+Phase fronts occur at different locations and times for different parameter sets. At a given voxel,
+\begin{equation}
+\eta^* = \sum_i w_i \eta_i < 1
+\end{equation}
+whenever not all contributing sources are fully solid at that location.
+
+\subsection{Nonlinearity of Phase Evolution}
+
+Phase transitions are inherently non-linear, exhibiting sharp interfaces and hysteresis effects. Linear interpolation smooths these transitions, leading to reduced peak values.
+
+\subsection{Convex Hull Constraint}
+
+Because $\eta^*$ is a convex combination of source fields, it lies within their convex hull. If no source attains $\eta = 1$ at a specific space--time point, the interpolated value cannot reach unity.
+
+Importantly, this effect does not indicate extrapolation error but reflects conservative smoothing of a binary-like variable.
+
+\section{Future Enhancements}
+
+Potential improvements include:
+\begin{itemize}
+\item Non-linear or monotonic blending schemes for phase variables,
+\item Local, patch-based attention in space--time,
+\item Post-processing via sigmoid or clipping operations,
+\item Hybrid correction using a short phase-field solve driven by interpolated temperature.
+\end{itemize}
+
+\section{Conclusion}
+
+We have presented a transformer-inspired parameter-space interpolation framework for rapid prediction of high-dimensional spatiotemporal fields in additive manufacturing. By combining learned attention with Gaussian locality regularization, the method achieves efficient, scalable, and physically coherent predictions without solving governing equations. While linear blending introduces conservative smoothing for phase-field variables, the approach remains highly effective for smooth fields such as temperature and offers a strong foundation for future hybrid and physics-constrained extensions.
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

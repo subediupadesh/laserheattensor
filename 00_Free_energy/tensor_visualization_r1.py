@@ -607,7 +607,7 @@ with tab1:
     #                     "Stable_Phase"
     #                 ]
     #             ]]),
-    #             use_container_width=True
+    #             width='stretch'
     #         )
 
     #     else:
@@ -618,11 +618,11 @@ with tab1:
 
     if show_raw_data:
         st.subheader("Raw Loaded Data")
-        st.dataframe(df_parallel, use_container_width=True)
+        st.dataframe(df_parallel, width='stretch')
 
     if show_normalized_data:
         st.subheader("Normalized Plot Data")
-        st.dataframe(df_norm, use_container_width=True)
+        st.dataframe(df_norm, width='stretch')
 
 # ============================================================
 # TAB 2: Interpolated Gibbs Tensor
@@ -878,19 +878,19 @@ with tab2:
         margin=dict(l=0, r=0, b=0, t=40)
     )
 
-    selected_3d = plotly_events(
+    clicked_3d = plotly_events(
         fig3d,
-        hover_event=True,
-        click_event=True,
+        hover_event=False,  # no Streamlit rerun on hover
+        click_event=True,   # print values only on click
         select_event=False,
         override_height=780,
         override_width="100%"
     )
 
-    st.subheader("Hovered / Selected Interpolated State")
+    st.subheader("Clicked Interpolated State")
 
-    if selected_3d:
-        point_id = selected_3d[0]["pointNumber"]
+    if clicked_3d:
+        point_id = clicked_3d[0]["pointNumber"]
 
         selected_row = df_interp.iloc[point_id]
 
@@ -919,22 +919,22 @@ with tab2:
         )
 
     else:
-        st.info("Hover over or click an interpolated composition point to display its full thermodynamic state.")
-
-    st.subheader("Phase Statistics at Current Temperature")
+        st.info("Hover shows the thermodynamic state near the mouse. Click an interpolated point to print its values here.")
+        
+    # st.subheader("Phase Statistics at Current Temperature")
 
     liq_fraction = np.sum(df_interp["Stable_Phase"] == "LIQUID") / len(df_interp) * 100
     fcc_fraction = np.sum(df_interp["Stable_Phase"] == "FCC") / len(df_interp) * 100
 
-    s1, s2, s3, s4 = st.columns(4)
+    # s1, s2, s3, s4 = st.columns(4)
 
-    s1.metric("Minimum stable G", f"{df_interp['G_stable'].min() / 1000:.2f} kJ/mol")
-    s2.metric("Maximum stable G", f"{df_interp['G_stable'].max() / 1000:.2f} kJ/mol")
-    s3.metric("LIQUID region", f"{liq_fraction:.2f}%")
-    s4.metric("FCC region", f"{fcc_fraction:.2f}%")
+    # s1.metric("Minimum stable G", f"{df_interp['G_stable'].min() / 1000:.2f} kJ/mol")
+    # s2.metric("Maximum stable G", f"{df_interp['G_stable'].max() / 1000:.2f} kJ/mol")
+    # s3.metric("LIQUID region", f"{liq_fraction:.2f}%")
+    # s4.metric("FCC region", f"{fcc_fraction:.2f}%")
 
     with st.expander("Interpolated dataframe"):
-        st.dataframe(df_interp, use_container_width=True)
+        st.dataframe(df_interp, width='stretch')
 
 
 

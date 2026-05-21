@@ -10,6 +10,18 @@ import io
 import re
 import os
 from typing import Dict, List, Optional, Tuple
+# ============================================================================
+# SCRIPT DIRECTORY RESOLUTION (for reliable relative path loading)
+# ============================================================================
+# Resolve folder paths relative to the script location, not the CWD.
+# This ensures folders like TEMP/, COMP/, ETALIQ/ are found regardless
+# of where streamlit is launched from.
+# ============================================================================
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+TEMP_DIR = os.path.join(SCRIPT_DIR, "TEMP")
+COMP_DIR = os.path.join(SCRIPT_DIR, "COMP")
+ETALIQ_DIR = os.path.join(SCRIPT_DIR, "ETALIQ")
+
 
 # ============================================================================
 # GLOBAL CONFIGURATION: cTF LOOKUP TABLE FOR INITIAL COMPOSITIONS
@@ -363,6 +375,16 @@ def load_etaliq_phase_field(etaliq_folder: str, filename: str) -> Optional[np.nd
 # ============================================================================
 with st.sidebar:
     st.header("⚙️ Attention Model Configuration")
+
+    # Show resolved folder paths
+    with st.expander("📁 Resolved Folder Paths", expanded=False):
+        st.code(f"SCRIPT_DIR = {SCRIPT_DIR}")
+        st.code(f"TEMP_DIR = {TEMP_DIR}")
+        st.code(f"COMP_DIR = {COMP_DIR}")
+        st.code(f"ETALIQ_DIR = {ETALIQ_DIR}")
+        st.caption("Folders are resolved relative to the script file location.")
+
+
     
     sigma_param = st.slider("Gaussian Locality σ (P,v space)", 0.05, 0.50, 0.20, 0.01, 
                            help="Width of Gaussian prior favoring sources close in (Power, Velocity) space")
@@ -421,11 +443,11 @@ st.subheader("📁 Load Simulation Data")
 # Folder configuration with clear labeling
 col_f1, col_f2, col_f3 = st.columns(3)
 with col_f1:
-    temp_folder = st.text_input("🌡️ Temperature Folder (TEMP/)", "TEMP")
+    temp_folder = st.text_input("🌡️ Temperature Folder (TEMP/)", TEMP_DIR, help=f"Default: {TEMP_DIR}")
 with col_f2:
-    comp_folder = st.text_input("🧪 Composition Folder (COMP/)", "COMP")
+    comp_folder = st.text_input("🧪 Composition Folder (COMP/)", COMP_DIR, help=f"Default: {COMP_DIR}")
 with col_f3:
-    etaliq_folder = st.text_input("🌀 ETALIQ Phase Field Folder", "ETALIQ")
+    etaliq_folder = st.text_input("🌀 ETALIQ Phase Field Folder", ETALIQ_DIR, help=f"Default: {ETALIQ_DIR}")
 
 load_method = st.selectbox("Loading Method", ["From local folders", "Upload files manually"])
 
@@ -441,16 +463,21 @@ if load_method == "From local folders":
     else:
         target_folder = comp_folder
         folder_label = "Composition (COMP/)"
-    
-    if os.path.isdir(target_folder):
-        npy_count = len([f for f in os.listdir(target_folder) if f.lower().endswith('.npy')])
-        st.info(f"📂 Found {npy_count} .npy files in {folder_label}: `{target_folder}`")
-        
+
+    # Auto-create folder if it doesn't exist (relative to script location)
+    if not os.path.isdir(target_folder):
+        os.makedirs(target_folder, exist_ok=True)
+        st.info(f"📁 Created folder: `{target_folder}` — please place .npy files there.")
+
+    npy_count = len([f for f in os.listdir(target_folder) if f.lower().endswith('.npy')])
+    st.info(f"📂 Found {npy_count} .npy files in {folder_label}: `{target_folder}`")
+
+    if npy_count > 0:
         with st.spinner(f"Loading {folder_label} files..."):
             sources, loaded_arrays = load_simulation_metadata(target_folder, field_type)
     else:
-        st.warning(f"⚠️ Folder '{target_folder}' not found. Please check path or create folder.")
-        
+        st.warning(f"⚠️ No .npy files found in '{target_folder}'. Please add simulation data.")
+
 else:  # Upload files manually
     uploaded_files = st.file_uploader(
         f"Upload .npy files containing 3D {'temperature' if field_type=='temperature' else 'composition'} fields T(t,y,x) or x_m(t,y,x)",

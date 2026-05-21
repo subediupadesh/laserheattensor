@@ -259,8 +259,8 @@ def parse_tensor_filename(filename: str) -> Optional[Dict]:
     - TF_idx: composition tensor index (0-4)
     - compositions: dict with 'liquid' and 'fcc' mole fraction lists from CTF_TABLE
     """
-    filename_lower = filename.lower()
-    match = re.search(r'p(\d+)s(\d+)cTF(\d+)\.npy$', filename_lower)
+    # Use case-insensitive regex on original filename to match p350s45cTF0.npy patterns
+    match = re.search(r'p(\d+)s(\d+)cTF(\d+)\.npy$', filename, re.IGNORECASE)
     
     if not match:
         return None
@@ -314,7 +314,7 @@ def load_simulation_metadata(folder_path: str, field_type: str) -> Tuple[List[Di
     for filename in npy_files:
         parsed = parse_tensor_filename(filename)
         if parsed is None:
-            st.warning(f"⚠️ Skipping '{filename}': does not match pattern p*i*s*j*cTF*k.npy")
+            st.warning(f"⚠️ Skipping '{filename}': does not match pattern p<power>s<speed>cTF<idx>.npy (case-insensitive)")
             continue
         
         try:

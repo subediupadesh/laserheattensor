@@ -448,15 +448,15 @@ Key visualization features include:
 Clone the repository:
 
 ```bash
-git clone https://github.com/<your-username>/<your-repository>.git
-cd <your-repository>
+git clone https://github.com/subediupadesh/MultiComponentLaserAM.git
+cd MultiComponentLaserAM
 ```
 
 Create a clean Python environment:
 
 ```bash
-conda create -n cocrfeni_surrogate python=3.10
-conda activate cocrfeni_surrogate
+conda create -n CoCrFeNi_surrogate python=3.10
+conda activate CoCrFeNi_surrogate
 ```
 
 Install the required packages:
@@ -599,4 +599,4 @@ For questions, collaboration, or discussion related to this project, please cont
 PhD Researcher, Computational Materials Science  
 Silesian University of Technology  
 
-LinkedIn: [upadesh-s-0b321a15b](https://www.linkedin.com/in/upadesh-s-0b321a15b/)
+LinkedIn: [Upadesh Subedi](https://www.linkedin.com/in/upadesh-s-0b321a15b/)

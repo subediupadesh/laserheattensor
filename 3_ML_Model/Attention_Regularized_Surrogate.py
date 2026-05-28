@@ -1,6 +1,7 @@
 import os
 import re
 import io
+import time
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -27,15 +28,47 @@ DEFAULT_DIRS = {
 
 ELEMENTS = ["Co", "Cr", "Fe", "Ni"]
 
-# cTF table used only to map existing filenames to source initial compositions.
-# The target composition is selected directly with Co/Cr/Fe sliders in the sidebar.
-CTF_TABLE: Dict[int, Dict[str, List[float]]] = {
+# cTF table used to map existing filenames and target dropdown choices
+# to the initial phase-specific compositions. The preferred source is
+# nomenclature_phase_composition_thermodynamic_factor_tensor_components.csv
+# located beside this script. ETA = 1 is treated as LIQUID and ETA = 0 as FCC.
+FALLBACK_CTF_TABLE: Dict[int, Dict[str, List[float]]] = {
     0: {"liquid": [0.35, 0.13, 0.15, 0.37], "fcc": [0.28, 0.18, 0.22, 0.32]},
     1: {"liquid": [0.32, 0.15, 0.17, 0.36], "fcc": [0.25, 0.21, 0.25, 0.29]},
     2: {"liquid": [0.30, 0.19, 0.11, 0.40], "fcc": [0.25, 0.23, 0.20, 0.32]},
     3: {"liquid": [0.33, 0.11, 0.23, 0.33], "fcc": [0.31, 0.15, 0.27, 0.27]},
     4: {"liquid": [0.38, 0.17, 0.19, 0.26], "fcc": [0.30, 0.22, 0.26, 0.22]},
 }
+
+
+def load_ctf_table_from_csv() -> Dict[int, Dict[str, List[float]]]:
+    csv_path = os.path.join(SCRIPT_DIR, "nomenclature_phase_composition_thermodynamic_factor_tensor_components.csv")
+    if not os.path.exists(csv_path):
+        return FALLBACK_CTF_TABLE
+
+    try:
+        df = pd.read_csv(csv_path)
+        required_cols = {"cTF", "ETA", "Co", "Cr", "Fe", "Ni"}
+        if not required_cols.issubset(df.columns):
+            return FALLBACK_CTF_TABLE
+
+        table: Dict[int, Dict[str, List[float]]] = {}
+        for ctf_idx, group in df.groupby("cTF"):
+            ctf_idx = int(ctf_idx)
+            liq_rows = group[group["ETA"].astype(float) == 1.0]
+            fcc_rows = group[group["ETA"].astype(float) == 0.0]
+            if liq_rows.empty or fcc_rows.empty:
+                continue
+            liq = liq_rows.iloc[0][ELEMENTS].astype(float).to_numpy().tolist()
+            fcc = fcc_rows.iloc[0][ELEMENTS].astype(float).to_numpy().tolist()
+            table[ctf_idx] = {"liquid": liq, "fcc": fcc}
+
+        return table if table else FALLBACK_CTF_TABLE
+    except Exception:
+        return FALLBACK_CTF_TABLE
+
+
+CTF_TABLE: Dict[int, Dict[str, List[float]]] = load_ctf_table_from_csv()
 
 CMAP_OPTIONS = [
     "inferno", "magma", "plasma", "viridis", "cividis", "turbo", "rainbow", "jet",
@@ -53,8 +86,8 @@ st.markdown(
     """
 This app predicts laser-processing fields from `.npy` files stored in `MLDATA/TEMP`, `MLDATA/ETALIQ`, `MLDATA/VEL`, and `MLDATA/COMP`, with filenames like `p350s45cTF0.npy`, where
 `p350` is laser power, `s45` is scan speed in cm/s, and `cTF0` identifies the source
-initial composition set. The target composition is selected directly as Co, Cr and Fe;
-Ni is inferred from mass conservation.
+initial composition set. The target composition can be selected from the cTF0–cTF4
+CSV table, or entered manually as `cTF_New`; Ni is inferred from mass conservation.
 """
 )
 
@@ -181,16 +214,21 @@ def load_sources_from_upload(uploaded_files, field_key: str) -> Tuple[List[Dict]
 def sources_dataframe(sources: List[Dict]) -> pd.DataFrame:
     rows = []
     for s in sources:
-        cL = s["composition_liquid"]
+        cL = np.asarray(s["composition_liquid"], dtype=float)
+        cF = np.asarray(s["composition_fcc"], dtype=float)
         rows.append({
             "File": s["file_name"],
             "P (W)": s["P"],
             "v (cm/s)": s["v_cm_s"],
             "cTF": s["TF_idx"],
-            "Co": cL[0],
-            "Cr": cL[1],
-            "Fe": cL[2],
-            "Ni": cL[3],
+            "LIQ Co": cL[0],
+            "LIQ Cr": cL[1],
+            "LIQ Fe": cL[2],
+            "LIQ Ni": cL[3],
+            "FCC Co": cF[0],
+            "FCC Cr": cF[1],
+            "FCC Fe": cF[2],
+            "FCC Ni": cF[3],
             "Shape": " × ".join(map(str, s["shape"])),
         })
     return pd.DataFrame(rows)
@@ -235,6 +273,51 @@ def choose_folder_dialog(initial_dir: str) -> Optional[str]:
         st.warning(f"Folder picker could not be opened in this session: {exc}")
         return None
 
+
+# ============================================================
+# Inference timing utilities
+# ============================================================
+def _format_ms(seconds: float) -> str:
+    return f"{seconds * 1000.0:.3f} ms"
+
+
+def display_prediction_timings(timings: Dict[str, float], title: str = "Prediction calculation time"):
+    if not timings:
+        return
+
+    st.markdown(f"### {title}")
+    timing_df = pd.DataFrame([
+        {
+            "Stage": "Parameter normalization and query-key projection",
+            "Time (ms)": timings.get("param_norm_qk_projection", 0.0) * 1000.0,
+        },
+        {
+            "Stage": "Hybrid weight computation",
+            "Time (ms)": timings.get("hybrid_weight_computation", 0.0) * 1000.0,
+        },
+        {
+            "Stage": "Weighted field interpolation",
+            "Time (ms)": timings.get("weighted_field_interpolation", 0.0) * 1000.0,
+        },
+        {
+            "Stage": "Total inference time",
+            "Time (ms)": timings.get("total_inference", 0.0) * 1000.0,
+        },
+    ])
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Parameter normalization + Q/K projection", _format_ms(timings.get("param_norm_qk_projection", 0.0)))
+    c2.metric("Hybrid weight computation", _format_ms(timings.get("hybrid_weight_computation", 0.0)))
+    c3.metric("Weighted field interpolation", _format_ms(timings.get("weighted_field_interpolation", 0.0)))
+    c4.metric("Total inference", _format_ms(timings.get("total_inference", 0.0)))
+    st.dataframe(timing_df, use_container_width=True, hide_index=True)
+
+
+def aggregate_prediction_timings(timing_dict: Dict[str, Dict[str, float]]) -> Dict[str, float]:
+    keys = ["param_norm_qk_projection", "hybrid_weight_computation", "weighted_field_interpolation", "total_inference"]
+    return {key: float(sum((timing_dict.get(field, {}) or {}).get(key, 0.0) for field in timing_dict)) for key in keys}
+
+
 # ============================================================
 # Attention model based on colleague's phase-aware formulation
 # ============================================================
@@ -260,19 +343,33 @@ class PhaseAwareAttentionInterpolator(nn.Module):
         return torch.tensor(src, dtype=torch.float32), torch.tensor(tgt, dtype=torch.float32)
 
     def composition_similarity(self, source_comp: np.ndarray, target_comp: np.ndarray) -> float:
-        diff2 = float(np.sum((np.asarray(source_comp) - np.asarray(target_comp)) ** 2))
+        source_vec = np.asarray(source_comp, dtype=float).ravel()
+        target_vec = np.asarray(target_comp, dtype=float).ravel()
+        diff2 = float(np.sum((source_vec - target_vec) ** 2))
         sim = np.exp(-diff2 / (2 * self.sigma_comp ** 2))
         return float(sim)
 
+    @staticmethod
+    def phase_composition_vector(item: Dict) -> np.ndarray:
+        """Concatenate LIQUID and FCC compositions for phase-aware comparison."""
+        liquid = np.asarray(item.get("composition_liquid", item.get("composition")), dtype=float)
+        fcc = np.asarray(item.get("composition_fcc", liquid), dtype=float)
+        return np.concatenate([liquid, fcc])
+
     def compute_weights(self, sources: List[Dict], target: Dict, use_composition: bool = True) -> Dict[str, np.ndarray]:
+        total_start = time.perf_counter()
         n = len(sources)
+
+        stage_start = time.perf_counter()
         source_proc = [(s["P"], s["v"]) for s in sources]
         target_proc = (target["P"], target["v"])
         src_proc_tensor, tgt_proc_1d = self.normalize_params(source_proc, target_proc)
         tgt_proc = tgt_proc_1d.unsqueeze(0)
-
         q = self.W_q_proc(tgt_proc).view(1, self.num_heads, self.d_head)
         k = self.W_k_proc(src_proc_tensor).view(n, self.num_heads, self.d_head)
+        param_norm_qk_projection_time = time.perf_counter() - stage_start
+
+        stage_start = time.perf_counter()
         logits = torch.einsum("nhd,mhd->nmh", k, q) / np.sqrt(self.d_head)
         attn = torch.softmax(logits.squeeze(1), dim=0).mean(dim=1)
 
@@ -281,8 +378,9 @@ class PhaseAwareAttentionInterpolator(nn.Module):
         gaussian = gaussian / (gaussian.sum() + 1e-8)
 
         if use_composition:
+            target_comp_vec = self.phase_composition_vector(target)
             sims = np.array([
-                self.composition_similarity(s["composition_liquid"], target["composition"])
+                self.composition_similarity(self.phase_composition_vector(s), target_comp_vec)
                 for s in sources
             ], dtype=float)
             # comp_strength=0 => uniform composition effect; comp_strength=1 => full Gaussian similarity.
@@ -293,6 +391,8 @@ class PhaseAwareAttentionInterpolator(nn.Module):
 
         combined = attn * gaussian * comp
         combined = combined / (combined.sum() + 1e-8)
+        hybrid_weight_computation_time = time.perf_counter() - stage_start
+        weight_total_time = time.perf_counter() - total_start
 
         return {
             "attention_weights_proc": attn.detach().numpy(),
@@ -303,6 +403,13 @@ class PhaseAwareAttentionInterpolator(nn.Module):
             "norm_target_proc": tgt_proc_1d.numpy(),
             "W_q_proc": self.W_q_proc.weight.data.numpy(),
             "W_k_proc": self.W_k_proc.weight.data.numpy(),
+            "timings": {
+                "param_norm_qk_projection": param_norm_qk_projection_time,
+                "hybrid_weight_computation": hybrid_weight_computation_time,
+                "weighted_field_interpolation": 0.0,
+                "weight_total": weight_total_time,
+                "total_inference": weight_total_time,
+            },
         }
 
 # ============================================================
@@ -310,32 +417,67 @@ class PhaseAwareAttentionInterpolator(nn.Module):
 # ============================================================
 with st.sidebar:
     st.header("Target parameters")
-    p_target = st.number_input("Power, P (W)", min_value=300.0, max_value=800.0, value=435.0, step=10.0)
-    v_target_cm_s = st.number_input("Scan speed, v (cm/s)", min_value=40.0, max_value=80.0, value=55.0, step=5.0)
+    p_target = st.number_input("Power, P (W)", min_value=300.0, max_value=800.0, value=370.0, step=10.0)
+    v_target_cm_s = st.number_input("Scan speed, v (cm/s)", min_value=40.0, max_value=80.0, value=50.0, step=5.0)
 
-    co_target = st.slider("Co", 0.01, 0.40, 0.35, 0.01)
-    cr_target = st.slider("Cr", 0.01, 0.40, 0.13, 0.01)
-    fe_target = st.slider("Fe", 0.01, 0.40, 0.15, 0.01)
-    ni_target = round(1.0 - co_target - cr_target - fe_target, 4)
+    ctf_options = [f"cTF{k}" for k in sorted(CTF_TABLE.keys())] + ["cTF_New"]
+    target_ctf_choice = st.selectbox("Target composition set", ctf_options, index=0)
 
-    if ni_target < 0.01:
-        st.error(f"Invalid composition: Ni = {ni_target:.3f}. Reduce Co, Cr or Fe so Ni ≥ 0.01.")
-        target_valid = False
-    elif ni_target > 0.97:
-        st.error(f"Invalid composition: Ni = {ni_target:.3f}. Increase Co, Cr or Fe.")
-        target_valid = False
-    else:
-        st.success(f"Ni = 1 - Co - Cr - Fe = {ni_target:.2f}")
+    if target_ctf_choice != "cTF_New":
+        selected_ctf = int(target_ctf_choice.replace("cTF", ""))
+        liq_vals = np.array(CTF_TABLE[selected_ctf]["liquid"], dtype=float)
+        fcc_vals = np.array(CTF_TABLE[selected_ctf]["fcc"], dtype=float)
+
+        co_target, cr_target, fe_target, ni_target = liq_vals.tolist()
+        co_fcc_target, cr_fcc_target, fe_fcc_target, ni_fcc_target = fcc_vals.tolist()
         target_valid = True
 
+        st.markdown("**LIQUID composition selected from CSV**")
+        st.dataframe(
+            pd.DataFrame([dict(zip(ELEMENTS, liq_vals))], index=[target_ctf_choice]),
+            use_container_width=True,
+        )
+        st.markdown("**FCC composition selected from CSV**")
+        st.dataframe(
+            pd.DataFrame([dict(zip(ELEMENTS, fcc_vals))], index=[target_ctf_choice]),
+            use_container_width=True,
+        )
+    else:
+        st.markdown("**Custom LIQUID composition**")
+        co_target = st.slider("LIQ Co", 0.00, 1.00, 0.35, 0.01)
+        cr_target = st.slider("LIQ Cr", 0.00, 1.00, 0.13, 0.01)
+        fe_target = st.slider("LIQ Fe", 0.00, 1.00, 0.15, 0.01)
+        ni_target = round(1.0 - co_target - cr_target - fe_target, 4)
+
+        st.markdown("**Custom FCC composition**")
+        co_fcc_target = st.slider("FCC Co", 0.00, 1.00, 0.28, 0.01)
+        cr_fcc_target = st.slider("FCC Cr", 0.00, 1.00, 0.18, 0.01)
+        fe_fcc_target = st.slider("FCC Fe", 0.00, 1.00, 0.22, 0.01)
+        ni_fcc_target = round(1.0 - co_fcc_target - cr_fcc_target - fe_fcc_target, 4)
+
+        liq_valid = 0.0 <= ni_target <= 1.0
+        fcc_valid = 0.0 <= ni_fcc_target <= 1.0
+        target_valid = liq_valid and fcc_valid
+
+        if liq_valid:
+            st.success(f"LIQ Ni = 1 - Co - Cr - Fe = {ni_target:.3f}")
+        else:
+            st.error(f"Invalid LIQ composition: Ni = {ni_target:.3f}. Adjust LIQ Co, Cr or Fe.")
+
+        if fcc_valid:
+            st.success(f"FCC Ni = 1 - Co - Cr - Fe = {ni_fcc_target:.3f}")
+        else:
+            st.error(f"Invalid FCC composition: Ni = {ni_fcc_target:.3f}. Adjust FCC Co, Cr or Fe.")
+
     target_composition = np.array([co_target, cr_target, fe_target, ni_target], dtype=float)
+    target_composition_fcc = np.array([co_fcc_target, cr_fcc_target, fe_fcc_target, ni_fcc_target], dtype=float)
 
     st.header("Attention model")
-    sigma_param = st.slider("Gaussian locality σ for P-v", 0.05, 0.50, 0.20, 0.01)
+    sigma_param = st.slider("Gaussian locality σ for P-v", 0.05, 0.50, 0.18, 0.01)
     sigma_comp = st.slider("Composition similarity σ", 0.01, 0.25, 0.05, 0.01)
     comp_strength = st.slider("Composition influence strength", 0.0, 2.0, 1.0, 0.1)
-    num_heads = st.slider("Attention heads", 1, 8, 4, 1)
-    d_head = st.slider("Dimension per head", 4, 16, 8, 1)
+    num_heads = st.slider("Attention heads", 1, 12, 8, 1)
+    d_head = st.slider("Dimension per head", 4, 16, 6, 1)
     seed = st.number_input("Random seed", 0, 9999, 42, 1)
     torch.manual_seed(int(seed))
     np.random.seed(int(seed))
@@ -358,7 +500,11 @@ TARGET = {
     "P": float(p_target),
     "v_cm_s": float(v_target_cm_s),
     "v": float(v_target_cm_s) / 100.0,
+    # Backward-compatible alias used by older code sections: LIQUID composition.
     "composition": target_composition,
+    "composition_liquid": target_composition,
+    "composition_fcc": target_composition_fcc,
+    "ctf_choice": target_ctf_choice,
 }
 
 # ============================================================
@@ -468,26 +614,37 @@ def run_field_tab(field_key: str, label: str, unit: str, default_folder: str, cm
                 d_head=d_head,
                 comp_strength=comp_strength,
             )
+            inference_start = time.perf_counter()
             results = model.compute_weights(sources, TARGET, use_composition=use_comp)
             weights = results["combined_weights"]
+
+            interp_start = time.perf_counter()
             predicted = np.zeros_like(arrays[0], dtype=np.float64)
             for weight, arr in zip(weights, arrays):
                 predicted += weight * arr
+            weighted_field_interpolation_time = time.perf_counter() - interp_start
+
+            timings = dict(results.get("timings", {}))
+            timings["weighted_field_interpolation"] = weighted_field_interpolation_time
+            timings["total_inference"] = time.perf_counter() - inference_start
 
             st.session_state[f"pred_{field_key}"] = predicted
             st.session_state[f"res_{field_key}"] = results
             st.session_state[f"src_{field_key}"] = sources
             st.session_state[f"shape_{field_key}"] = predicted.shape
+            st.session_state[f"timings_{field_key}"] = timings
 
     predicted = st.session_state.get(f"pred_{field_key}")
     results = st.session_state.get(f"res_{field_key}")
     cached_sources = st.session_state.get(f"src_{field_key}")
+    timings = st.session_state.get(f"timings_{field_key}", {})
 
     if predicted is None or results is None or cached_sources is None:
         return
 
     Nt, Ny, Nx = predicted.shape
     st.success(f"Prediction available: {predicted.shape} = (Nt, Ny, Nx)")
+    display_prediction_timings(timings)
 
     st.markdown("### Hybrid attention weights")
     dfw = pd.DataFrame({
@@ -760,7 +917,9 @@ def run_field_tab(field_key: str, label: str, unit: str, default_folder: str, cm
             "field": predicted,
             "P": float(p_target),
             "v_cm_s": float(v_target_cm_s),
-            "composition": target_composition,
+            "composition_liquid": target_composition,
+            "composition_fcc": target_composition_fcc,
+            "ctf_choice": target_ctf_choice,
             "weights": results["combined_weights"],
         }
         if is_phase:
@@ -829,11 +988,19 @@ def compute_prediction_for_folder(field_key: str, folder_path: str, use_composit
         d_head=d_head,
         comp_strength=comp_strength,
     )
+    inference_start = time.perf_counter()
     results = model.compute_weights(sources, TARGET, use_composition=use_composition)
     weights = results["combined_weights"]
+
+    interp_start = time.perf_counter()
     predicted = np.zeros_like(arrays[0], dtype=np.float64)
     for weight, arr in zip(weights, arrays):
         predicted += weight * arr
+    weighted_field_interpolation_time = time.perf_counter() - interp_start
+
+    timings = dict(results.get("timings", {}))
+    timings["weighted_field_interpolation"] = weighted_field_interpolation_time
+    timings["total_inference"] = time.perf_counter() - inference_start
 
     return {
         "ok": True,
@@ -844,6 +1011,7 @@ def compute_prediction_for_folder(field_key: str, folder_path: str, use_composit
         "prediction": predicted,
         "results": results,
         "shape": predicted.shape,
+        "timings": timings,
     }
 
 
@@ -1135,6 +1303,17 @@ def run_combo_tab():
 
     Nt, Ny, Nx = vel_pred.shape
 
+    combo_timings_by_field = {
+        "TEMP": combo["TEMP"].get("timings", {}),
+        "ETALIQ": combo["ETALIQ"].get("timings", {}),
+        "VEL": combo["VEL"].get("timings", {}),
+    }
+    display_prediction_timings(aggregate_prediction_timings(combo_timings_by_field), title="COMBO total prediction calculation time")
+
+    with st.expander("Per-field COMBO calculation time", expanded=False):
+        for field_label in ["TEMP", "ETALIQ", "VEL"]:
+            display_prediction_timings(combo_timings_by_field[field_label], title=f"{field_label} prediction calculation time")
+
     st.markdown("### COMBO animation")
     combo_anim_fig = plot_combo_animation(temp_pred, eta_pred, vel_pred, vel_cmap, phase_threshold)
     st.plotly_chart(combo_anim_fig, use_container_width=True, key="combo_animation_plot")
@@ -1207,7 +1386,7 @@ The calculation follows the phase-aware attention idea from the colleague versio
 2. Process parameters `(P, v)` are min-max normalized.
 3. Query/key projections are computed with a multi-head attention layer.
 4. A Gaussian locality term favors nearby `(P, v)` sources.
-5. A Gaussian composition-similarity term compares the target `[Co, Cr, Fe, Ni]` against the source `cTF` liquid composition vector.
+5. A Gaussian composition-similarity term compares the target phase-specific `[Co, Cr, Fe, Ni]` vectors against the source `cTF` LIQUID and FCC composition vectors.
 6. The final normalized hybrid weight is used to interpolate the full spatiotemporal field.
 
 The plots are kept as direct static/animated field visualizations with manual colormap selection, temperature contours at 800 K and 1800 K, and `.npy/.npz` downloads.

@@ -9,6 +9,8 @@
 
 This repository contains the computational workflow, thermodynamic data processing, phase-field simulation post-processing, machine-learning tensor organization, and attention-regularized surrogate model developed for the study:
 
+## Interactive AI Surrogate Streamlit WebApp :[![Attention_Surrogate_Model](https://img.shields.io/badge/StreamlitAPP-streamlit-red)](https://mpealaserpred.streamlit.app/)
+
 ## Paper
 
 **Attention-Regularized Multicomponent Phase-Field Surrogate for Laser Processing of CoCrFeNi Alloy**

@@ -29,9 +29,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 st.title("⚛️ Co-Cr-Fe-Ni Gibbs Energy & Interface Driving Force")
-st.markdown("""
+st.markdown(r"""
 **Thermodynamic → Mechanical Conversion**  
-ΔG (J/mol) → ΔGᵥ = ΔG/Vₘ (Pa = N/m²) → Interface driving pressure  
+ΔG (J/mol) → $P_{chem} = -\Delta G/V_m$ (Pa = N/m²) → Interface driving pressure  
 **New:** Grain size → $S_v$ → capillary-corrected $P_{net}$ → differential force $dF_{net}$
 """)
 
@@ -220,9 +220,9 @@ def compute_capillary_pressure(gamma, curvature_r):
     """Capillary pressure: P_capillary = 2γ/r [Pa]."""
     return (2.0 * gamma) / curvature_r
 
-def compute_net_pressure(delta_G_v, P_capillary):
-    """Net pressure: P_net = ΔG_v - P_capillary [Pa]."""
-    return delta_G_v - P_capillary
+def compute_net_pressure(P_chem, P_capillary):
+    """Net pressure: P_net = P_chem - P_capillary [Pa]. Positive drives LIQUID → FCC growth."""
+    return P_chem - P_capillary
 
 def compute_differential_force(P_net, Sv, dV):
     """Differential force on local volume element: dF_net = P_net × Sv × dV [N]."""
@@ -304,13 +304,13 @@ def display_latex_theory():
         linear mixing.
         """)
 
-        st.markdown("### 4. Volumetric Driving Pressure")
+        st.markdown("### 4. Chemical Driving Pressure")
         st.markdown("""
-        The volumetric driving force, or driving pressure, is:
+        The chemical driving pressure follows the sign convention where positive pressure drives LIQUID → FCC growth:
         """)
         st.markdown(r"""
         $$
-        \Delta G_v = \frac{\Delta G}{V_m}
+        P_{\mathrm{chem}} = -\frac{\Delta G}{V_m} = \frac{G_{\mathrm{LIQ}} - G_{\mathrm{FCC}}}{V_m}
         $$
         """)
         st.markdown(r"""
@@ -325,9 +325,8 @@ def display_latex_theory():
         \mathrm{N/m^2}
         $$
         """)
-        st.success("""
-        Therefore, ΔGᵥ can be interpreted as a thermodynamic pressure that drives
-        FCC–LIQUID interface motion.
+        st.success(r"""
+        Therefore, positive $P_{\mathrm{chem}}$ means FCC is thermodynamically favored and drives LIQUID → FCC growth.
         """)
 
         st.markdown("### 5. Interface Force from Direct Area")
@@ -336,7 +335,7 @@ def display_latex_theory():
         """)
         st.markdown(r"""
         $$
-        F = \Delta G_v A
+        F = P_{\mathrm{chem}} A
         $$
         """)
         st.markdown(r"""
@@ -378,9 +377,9 @@ def display_latex_theory():
         $$
         F_{\mathrm{total}}
         =
-        \Delta G_v A_{\mathrm{total}}
+        P_{\mathrm{chem}} A_{\mathrm{total}}
         =
-        \Delta G_v \frac{kV}{d}
+        P_{\mathrm{chem}} \frac{kV}{d}
         $$
         """)
         st.warning("""
@@ -397,7 +396,7 @@ def display_latex_theory():
         $$
         The corrected net pressure is:
         $$
-        P_{\mathrm{net}} = \Delta G_v - P_{\mathrm{capillary}}
+        P_{\mathrm{net}} = P_{\mathrm{chem}} - P_{\mathrm{capillary}}
         $$
         The local differential force used in the multi-ring plot is:
         $$
@@ -592,7 +591,7 @@ st.sidebar.subheader("🌊 Capillary / Differential Force")
 use_capillary = st.sidebar.checkbox(
     "Enable Capillary Correction",
     value=True,
-    help="Use P_net = ΔGᵥ − 2γ/r before calculating local differential force."
+    help="Use P_net = P_chem − 2γ/r before calculating local differential force."
 )
 
 if use_capillary:
@@ -669,8 +668,12 @@ else:
     # Interface driving force section
     st.subheader("⚙️ Interface Driving Force (Mechanical)")
 
-    delta_G_v = delta_G / V_m  # Pa = N/m²
-    delta_G_v_MPa = delta_G_v / 1e6  # MPa
+    P_chem = -delta_G / V_m  # Chemical driving pressure [Pa]; positive drives LIQUID → FCC
+    P_chem_MPa = P_chem / 1e6  # MPa
+
+    # Backward-compatible aliases used by the radar/export blocks
+    delta_G_v = P_chem
+    delta_G_v_MPa = P_chem_MPa
 
     # ------------------------------------------------------------
     # Corrected pressure and force calculation
@@ -679,7 +682,7 @@ else:
         curvature_r = compute_curvature_radius(grain_size_m)
         P_capillary = compute_capillary_pressure(gamma, curvature_r)
         P_capillary_MPa = P_capillary / 1e6
-        P_net = compute_net_pressure(delta_G_v, P_capillary)
+        P_net = compute_net_pressure(P_chem, P_capillary)
         P_net_MPa = P_net / 1e6
         dF_net = compute_differential_force(P_net, Sv, dV)
         force_for_display = dF_net
@@ -688,18 +691,18 @@ else:
         curvature_r = None
         P_capillary = 0.0
         P_capillary_MPa = 0.0
-        P_net = delta_G_v
-        P_net_MPa = delta_G_v_MPa
+        P_net = P_chem
+        P_net_MPa = P_chem_MPa
         dF_net = None
-        force_for_display = delta_G_v * interface_area
+        force_for_display = P_chem * interface_area
         force_label_for_display = "Direct-Area Force F"
 
     if use_capillary and grain_size_m is not None:
         col_p1, col_p2, col_p3, col_p4 = st.columns(4)
         col_p1.metric(
-            "Driving Pressure ΔGᵥ",
-            f"{delta_G_v_MPa:.3f} MPa",
-            help="Raw volumetric driving force: ΔG/Vₘ"
+            "Chemical Drive P_chem",
+            f"{P_chem_MPa:.3f} MPa",
+            help="P_chem = -ΔG/Vₘ = (G_LIQ - G_FCC)/Vₘ"
         )
         col_p2.metric(
             "Capillary Pressure",
@@ -711,32 +714,32 @@ else:
         col_p3.metric(
             "Net Pressure P_net",
             f"{P_net_MPa:.3f} MPa",
-            help="P_net = ΔGᵥ − P_capillary",
+            help="P_net = P_chem − P_capillary",
             delta=f"−{P_capillary_MPa:.2f} MPa",
             delta_color="normal"
         )
-        direction = "→ FCC grows" if P_net < 0 else "→ LIQUID grows"
+        direction = "→ LIQUID → FCC (Growth)" if P_net > 0 else "→ FCC → LIQUID (Remelting)"
         col_p4.metric("Interface motion", direction)
 
         st.info(f"""
         **Capillary-Corrected Driving Pressure:**
         - Grain size: **{grain_size_um:.3f} μm** → curvature radius r = D/4 = **{curvature_r:.2e} m**
         - Capillary resistance: **{P_capillary_MPa:.3f} MPa** using γ = {gamma:.2f} N/m
-        - Net pressure: **{P_net_MPa:.3f} MPa** = {delta_G_v_MPa:.3f} − {P_capillary_MPa:.3f} MPa
+        - Net pressure: **{P_net_MPa:.3f} MPa** = {P_chem_MPa:.3f} − {P_capillary_MPa:.3f} MPa
         """)
     else:
         col_p1, col_p2, col_p3 = st.columns(3)
         col_p1.metric(
-            "Driving Pressure ΔGᵥ",
-            f"{delta_G_v_MPa:.3f} MPa",
-            help="Volumetric driving force: ΔG/Vₘ"
+            "Chemical Drive P_chem",
+            f"{P_chem_MPa:.3f} MPa",
+            help="P_chem = -ΔG/Vₘ = (G_LIQ - G_FCC)/Vₘ"
         )
         col_p2.metric(
             "SI units",
-            f"{delta_G_v:.2e} N/m²",
+            f"{P_chem:.2e} N/m²",
             help="Equivalent to Pascals (Pa)"
         )
-        direction = "→ FCC grows" if delta_G < 0 else "→ LIQUID grows"
+        direction = "→ LIQUID → FCC (Growth)" if P_net > 0 else "→ FCC → LIQUID (Remelting)"
         col_p3.metric("Interface motion", direction)
 
     # Force calculation
@@ -781,8 +784,8 @@ else:
     else:
         col_f1, col_f2, col_f3 = st.columns(3)
         col_f1.metric("Interface Area A", f"{interface_area:.2e} m²")
-        col_f2.metric("Driving Pressure ΔGᵥ", f"{delta_G_v_MPa:.3f} MPa")
-        col_f3.metric("Direct-Area Force F = ΔGᵥ × A", f"{force_for_display:.3e} N",
+        col_f2.metric("Chemical Drive P_chem", f"{P_chem_MPa:.3f} MPa")
+        col_f3.metric("Direct-Area Force F = P_chem × A", f"{force_for_display:.3e} N",
                       help="Direct-area fallback; switch to Grain Size Derived mode for dF_net")
 
         st.warning("For the corrected differential-force calculation, use `Grain Size Derived (Sv x V)` mode.")
@@ -794,7 +797,7 @@ st.header("🗺️ Exploration Tools")
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "📈 G vs Composition",
     "🌡️ Phase Map vs T",
-    "📊 ΔGᵥ vs Composition",
+    "📊 P_chem vs Composition",
     "📋 Raw Data",
     "🌞 Sunburst Hierarchy",
     "🕸️ Radar State"
@@ -873,7 +876,7 @@ with tab2:
             dG = gf - gl
             delta_G_list.append(dG)
             vm_local = composition_dependent_vm(x_co, x_cr, x_fe, x_ni) if vm_model == "Composition‑dependent" else V_m
-            delta_Gv_list.append(dG / vm_local / 1e6)
+            delta_Gv_list.append(-dG / vm_local / 1e6)
             valid_T.append(T_val)
     if not valid_T:
         st.warning("⚠️ No valid data points for temperature scan at this composition")
@@ -887,7 +890,7 @@ with tab2:
         ))
         fig2.add_trace(go.Scatter(
             x=valid_T, y=delta_Gv_list,
-            mode="lines+markers", name="ΔGᵥ (MPa)",
+            mode="lines+markers", name="P_chem (MPa)",
             yaxis="y2", line=dict(dash="dot", color="#d62728", width=2),
             marker=dict(symbol='square', size=6)
         ))
@@ -905,7 +908,7 @@ with tab2:
             ),
             yaxis2=dict(
                 title=dict(
-                    text="ΔGᵥ (MPa)",
+                    text="P_chem (MPa)",
                     font=dict(color="#d62728")
                 ),
                 tickfont=dict(color="#d62728"),
@@ -920,13 +923,13 @@ with tab2:
         st.markdown("##### 🔍 Interpretation")
         st.markdown("""
         - **Green curve (ΔG)**: Negative values favor FCC formation
-        - **Red dotted curve (ΔGᵥ)**: Mechanical driving pressure in MPa
+        - **Red dotted curve (P_chem)**: Chemical driving pressure in MPa; positive values drive LIQUID → FCC growth
         - **Gray dashed line**: Phase boundary (ΔG = 0)
         - Crossing points indicate phase transition temperatures
         """)
 
 with tab3:
-    st.markdown("### Driving Pressure vs Composition (ΔGᵥ in MPa)")
+    st.markdown("### Chemical Driving Pressure vs Composition (P_chem in MPa)")
     scan_var2 = st.radio("Scan along", ["x_Co", "x_Cr", "x_Fe"], horizontal=True, key="scan_dgv")
     fixed_val2 = st.slider("Fixed other components", 0.0, 0.4, 0.2, 0.01, key="fixed_dgv")
     max_val2 = 1.0 - 2 * fixed_val2 - 0.01
@@ -950,7 +953,7 @@ with tab3:
             gl, gf = evaluate_point(x_co_v, x_cr_v, x_fe_v, T)
             if gl is not None and gf is not None:
                 vm_local = composition_dependent_vm(x_co_v, x_cr_v, x_fe_v, x_ni_v) if vm_model == "Composition‑dependent" else V_m
-                dGv = (gf - gl) / vm_local / 1e6
+                dGv = -(gf - gl) / vm_local / 1e6
                 dGv_vals.append(dGv)
                 valid_x2.append(xv)
             else:
@@ -961,7 +964,7 @@ with tab3:
             mode="lines", fill="tozeroy",
             line=dict(color="#9467bd", width=2),
             fillcolor='rgba(148,103,189,0.2)',
-            name="ΔGᵥ"
+            name="P_chem"
         ))
         fig3.add_hline(y=0, line_dash="dash", line_color="gray", annotation_text="Phase boundary")
         if scan_var2 == "x_Co":
@@ -970,7 +973,7 @@ with tab3:
             current_x2 = x_cr
         else:
             current_x2 = x_fe
-        current_dGv = delta_G / V_m / 1e6 if g_liq is not None else None
+        current_dGv = -delta_G / V_m / 1e6 if g_liq is not None else None
         if current_dGv is not None:
             fig3.add_trace(go.Scatter(
                 x=[current_x2], y=[current_dGv],
@@ -978,14 +981,14 @@ with tab3:
                 marker=dict(symbol='star', size=12, color='#d62728', line=dict(width=2, color='white'))
             ))
         fig3.update_layout(
-            title=f"Driving Pressure ΔGᵥ vs {scan_var2} at T={T} K",
+            title=f"Chemical Driving Pressure P_chem vs {scan_var2} at T={T} K",
             xaxis_title=scan_var2,
-            yaxis_title="ΔGᵥ (MPa)",
+            yaxis_title="P_chem (MPa)",
             height=450,
             hovermode='x unified'
         )
         st.plotly_chart(fig3, width='content')
-        st.caption("💡 Positive ΔGᵥ → LIQUID grows | Negative ΔGᵥ → FCC grows")
+        st.caption("💡 Positive P_chem → LIQUID → FCC growth | Negative P_chem → FCC → LIQUID remelting")
 
 with tab4:
     st.markdown("### 📋 Raw Thermodynamic Data")
@@ -1066,7 +1069,7 @@ with tab5:
     with col_sb3:
         force_cmap = st.selectbox(
             "Force colorscale",
-            ["Portland", "Plotly3", "ice", "haline", "deep", "dense", "teal", "tealgrn", "blues", "blugrn", "pubu", "electric"],
+            ["Portland_r", "Portland", "Plotly3", "ice", "haline", "deep", "dense", "teal", "tealgrn", "blues", "blugrn", "pubu", "electric"],
             # ['aggrnyl', 'agsunset', 'algae', 'amp', 'armyrose', 'balance', 'blackbody', 'bluered', 'blues', 'blugrn', 'bluyl', 'brbg', 'brwnyl', 'bugn', 'bupu', 'burg', 'burgyl', 'cividis', 'curl', 'darkmint', 'deep', 'delta', 'dense', 'earth', 'edge', 'electric', 'emrld', 'fall', 'geyser', 'gnbu', 'gray', 'greens', 'greys', 'haline', 'hot', 'hsv', 'ice', 'icefire', 'inferno', 'jet', 'magenta', 'magma', 'matter', 'mint', 'mrybm', 'mygbm', 'oranges', 'orrd', 'oryel', 'oxy', 'peach', 'phase', 'picnic', 'pinkyl', 'piyg', 'plasma', 'plotly3', 'portland', 'prgn', 'pubu', 'pubugn', 'puor', 'purd', 'purp', 'purples', 'purpor', 'rainbow', 'rdbu', 'rdgy', 'rdpu', 'rdylbu', 'rdylgn', 'redor', 'reds', 'solar', 'spectral', 'speed', 'sunset', 'sunsetdark', 'teal', 'tealgrn', 'tealrose', 'tempo', 'temps', 'thermal', 'tropic', 'turbid', 'turbo', 'twilight', 'viridis', 'ylgn', 'ylgnbu', 'ylorbr', 'ylorrd'],
             index=0,
             key="tab5_force_cmap"
@@ -1244,24 +1247,25 @@ with tab5:
                     x_ni_s
                 )
 
-                # Pressure in Pa for force calculation
-                delta_G_v_pa_s = delta_G_s / V_m_s
+                # Chemical driving pressure in Pa for force calculation
+                # Positive P_chem drives LIQUID → FCC growth
+                P_chem_pa_s = -delta_G_s / V_m_s
 
                 # MPa only for hover display
-                delta_G_v_mpa_s = delta_G_v_pa_s / 1e6
+                P_chem_mpa_s = P_chem_pa_s / 1e6
 
                 # Correct force calculation for the outer ring
                 # Grain-size mode: dF_net = P_net × Sv × dV
-                # Direct-input fallback: F = ΔGᵥ × A
+                # Direct-input fallback: F = P_chem × A
                 if use_capillary and grain_size_m is not None:
                     chart_curvature_r = compute_curvature_radius(grain_size_m)
                     chart_P_capillary = compute_capillary_pressure(gamma, chart_curvature_r)
-                    P_net_s = compute_net_pressure(delta_G_v_pa_s, chart_P_capillary)
+                    P_net_s = compute_net_pressure(P_chem_pa_s, chart_P_capillary)
                     P_net_mpa_s = P_net_s / 1e6
                 else:
                     chart_P_capillary = 0.0
-                    P_net_s = delta_G_v_pa_s
-                    P_net_mpa_s = delta_G_v_mpa_s
+                    P_net_s = P_chem_pa_s
+                    P_net_mpa_s = P_chem_mpa_s
 
                 if area_mode == "Grain Size Derived (Sv x V)" and Sv is not None and dV is not None:
                     net_force_s = compute_differential_force(P_net_s, Sv, dV)
@@ -1298,7 +1302,7 @@ with tab5:
                         x_fe_s,
                         x_ni_s,
                         delta_G_s,
-                        delta_G_v_mpa_s,
+                        P_chem_mpa_s,
                         net_force_s,
                         el,
                         comp_vals[el],
@@ -1324,7 +1328,7 @@ with tab5:
                     x_fe_s,
                     x_ni_s,
                     delta_G_s,
-                    delta_G_v_mpa_s,
+                    P_chem_mpa_s,
                     net_force_s,
                     P_net_mpa_s,
                     force_mode_s,
@@ -1343,6 +1347,19 @@ with tab5:
                 max_abs_force = 1.0
         else:
             max_abs_force = 1.0
+
+        # ============================================================
+        # COLORBAR TICKS: force both colorbars to show min/max + 3 middle ticks
+        # ============================================================
+        temp_min_tick = float(min(temperatures_sorted))
+        temp_max_tick = float(max(temperatures_sorted))
+        temp_tickvals = np.linspace(temp_min_tick, temp_max_tick, 5)
+        temp_ticktext = [f"{v:.0f}" for v in temp_tickvals]
+
+        force_min_tick = -float(max_abs_force)
+        force_max_tick = float(max_abs_force)
+        force_tickvals = np.linspace(force_min_tick, force_max_tick, 5)
+        force_ticktext = [f"{v:.2e}" for v in force_tickvals]
 
         # ============================================================
         # BUILD FIGURE
@@ -1386,6 +1403,9 @@ with tab5:
                         borderwidth=2.2,
                         bordercolor="black",
                         bgcolor="white",
+                        tickmode="array",
+                        tickvals=temp_tickvals,
+                        ticktext=temp_ticktext,
                         tickformat=".0f"
                     ),
                     line=dict(
@@ -1434,7 +1454,7 @@ with tab5:
                         "<b>Fe</b> = %{customdata[3]:.3f}<br>"
                         "<b>Ni</b> = %{customdata[4]:.3f}<br><br>"
                         "ΔG = %{customdata[5]:.2f} J/mol<br>"
-                        "ΔGᵥ = %{customdata[6]:.3f} MPa<br>"
+                        "P_chem = %{customdata[6]:.3f} MPa<br>"
                         "P_net = %{customdata[10]:.3f} MPa<br>"
                         "Mode = %{customdata[11]}<br>"
                         "<b>Differential Force</b> = %{customdata[7]:.2e} N"
@@ -1484,6 +1504,9 @@ with tab5:
                         borderwidth=2.2,
                         bordercolor="black",
                         bgcolor="white",
+                        tickmode="array",
+                        tickvals=force_tickvals,
+                        ticktext=force_ticktext,
                         tickformat=".1e"
                     ),
                     line=dict(
@@ -1500,7 +1523,7 @@ with tab5:
                     "<b>Fe</b> = %{customdata[3]:.3f}<br>"
                     "<b>Ni</b> = %{customdata[4]:.3f}<br><br>"
                     "ΔG = %{customdata[5]:.2f} J/mol<br>"
-                    "ΔGᵥ = %{customdata[6]:.3f} MPa<br>"
+                    "P_chem = %{customdata[6]:.3f} MPa<br>"
                     "P_net = %{customdata[8]:.3f} MPa<br>"
                     "Mode = %{customdata[9]}<br>"
                     "<b>Differential Force</b> = %{customdata[7]:.2e} N"
@@ -1796,7 +1819,7 @@ with tab6:
     else:
         T_norm = normalize_temperature(T)
         delta_G_v_norm = min(1.0, abs(delta_G_v_MPa) / 100)
-        categories = ['x_Co', 'x_Cr', 'x_Fe', 'x_Ni', 'T (norm)', '|ΔGᵥ| (norm)']
+        categories = ['x_Co', 'x_Cr', 'x_Fe', 'x_Ni', 'T (norm)', '|P_chem| (norm)']
         values = [x_co, x_cr, x_fe, x_ni, T_norm, delta_G_v_norm]
         phase_pref, phase_color, phase_emoji = get_phase_preference(delta_G)
         fig_radar = go.Figure(data=go.Scatterpolar(
@@ -1810,7 +1833,7 @@ with tab6:
                 '<b>Thermodynamic State</b><br>' +
                 'Composition: Co:%{r[0]:.3f} Cr:%{r[1]:.3f} Fe:%{r[2]:.3f} Ni:%{r[3]:.3f}<br>' +
                 'Temperature: %{r[4]:.3f} (norm) ≈ ' + f'{T} K<br>' +
-                '|Driving Pressure|: %{r[5]:.3f} (norm) ≈ {abs(delta_G_v_MPa):.2f} MPa<br>' +
+                '|Chemical Drive|: %{r[5]:.3f} (norm) ≈ {abs(P_chem_MPa):.2f} MPa<br>' +
                 f'Interface Force: {abs(force_for_display):.2e} N<extra></extra>'
         ))
         baseline_vals = [0.25, 0.25, 0.25, 0.25, 0.5, 0.3]
@@ -1877,7 +1900,7 @@ with tab6:
             **Axes (all normalized [0,1]):**
             - **x_Co, x_Cr, x_Fe, x_Ni**: Mole fractions
             - **T (norm)**: (T-300)/3000 → 0=300K, 1=3300K
-            - **|ΔGᵥ| (norm)**: |driving pressure| / 100 MPa
+            - **|P_chem| (norm)**: |chemical driving pressure| / 100 MPa
             **Visual Encoding:**
             - {phase_emoji} **Fill color**: Phase preference
               - 🔵 Blue: FCC favored (ΔG < 0)
@@ -1886,12 +1909,12 @@ with tab6:
             - **Radial distance**: Value magnitude
             **Current Metrics:**
             - ΔG = {delta_G:.1f} J/mol
-            - ΔGᵥ = {delta_G_v_MPa:.1f} MPa
+            - P_chem = {P_chem_MPa:.1f} MPa
             - Force used: {abs(force_for_display):.2e} N
             """)
             dist_from_equiatomic = np.sqrt(sum((v-0.25)**2 for v in [x_co, x_cr, x_fe, x_ni]))
             st.metric("Distance from equiatomic", f"{dist_from_equiatomic:.3f}")
-            st.metric("Driving force magnitude", f"{abs(delta_G_v_MPa):.1f} MPa")
+            st.metric("Driving force magnitude", f"{abs(P_chem_MPa):.1f} MPa")
             if st.button("📥 Download Radar as PNG", key="btn_dl_radar"):
                 try:
                     img_bytes = fig_radar.to_image(format='png', width=600, height=600, scale=2)
@@ -1909,7 +1932,7 @@ Composition: Co={x_co:.3f}, Cr={x_cr:.3f}, Fe={x_fe:.3f}, Ni={x_ni:.3f}
 G_LIQUID = {g_liq:.1f} J/mol
 G_FCC = {g_fcc:.1f} J/mol
 ΔG = {delta_G:.1f} J/mol ({phase_pref})
-ΔGᵥ = {delta_G_v_MPa:.1f} MPa
+P_chem = {P_chem_MPa:.1f} MPa
 Interface Force used = {force_for_display:.2e} N"""
                 st.code(summary)
                 st.success("✅ Summary copied to code block!")

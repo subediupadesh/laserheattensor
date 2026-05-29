@@ -484,7 +484,7 @@ if hovered_points:
 
         st.dataframe(
             pd.DataFrame([selected_row[variables]]),
-            use_container_width=True
+            width='stretch'
         )
     else:
         st.info("Hover over a colored thermodynamic line to display its values.")
@@ -497,8 +497,8 @@ else:
 # ============================================================
 if show_raw_data:
     st.subheader("Raw Loaded Data")
-    st.dataframe(df_parallel[variables], use_container_width=True)
+    st.dataframe(df_parallel[variables], width='stretch')
 
 if show_normalized_data:
     st.subheader("Normalized Plot Data")
-    st.dataframe(df_norm, use_container_width=True)
+    st.dataframe(df_norm, width='stretch')

@@ -375,12 +375,12 @@ with st.sidebar:
         st.markdown("**LIQUID composition selected from CSV**")
         st.dataframe(
             pd.DataFrame([dict(zip(ELEMENTS, liq_vals))], index=[target_ctf_choice]),
-            use_container_width=True,
+            width='stretch',
         )
         st.markdown("**FCC composition selected from CSV**")
         st.dataframe(
             pd.DataFrame([dict(zip(ELEMENTS, fcc_vals))], index=[target_ctf_choice]),
-            use_container_width=True,
+            width='stretch',
         )
     else:
         st.markdown("**Custom LIQUID composition**")
@@ -494,7 +494,7 @@ def run_field_tab(field_key: str, label: str, unit: str, default_folder: str, cm
 
     if sources:
         st.markdown(f"### 📋 Loaded {len(sources)} Valid Source Simulations")
-        st.dataframe(sources_dataframe(sources), use_container_width=True)
+        st.dataframe(sources_dataframe(sources), width='stretch')
 
     if len(sources) < 2:
         st.info("Load at least two valid source simulations to run interpolation.")
@@ -586,7 +586,7 @@ def run_field_tab(field_key: str, label: str, unit: str, default_folder: str, cm
         "Composition similarity": np.round(results["composition_weights"], 5),
         "Final weight": np.round(results["combined_weights"], 5),
     })
-    st.dataframe(dfw.style.bar(subset=["Final weight"], color="#5fba7d"), use_container_width=True)
+    st.dataframe(dfw.style.bar(subset=["Final weight"], color="#5fba7d"), width='stretch')
 
     with st.expander("Parameter-space weight plot and query/key matrices", expanded=False):
         col_param, col_qk = st.columns([1.45, 1.0])
@@ -658,7 +658,7 @@ def run_field_tab(field_key: str, label: str, unit: str, default_folder: str, cm
                 margin=dict(l=0, r=0, t=45, b=0),
                 height=560,
             )
-            st.plotly_chart(fig_param, use_container_width=True, key=f"param_plot_3d_{field_key}")
+            st.plotly_chart(fig_param, width='stretch', key=f"param_plot_3d_{field_key}")
 
         with col_qk:
             fig_qk, (ax_q, ax_k) = plt.subplots(1, 2, figsize=(8.2, 3.8), constrained_layout=True)
@@ -749,7 +749,7 @@ def run_field_tab(field_key: str, label: str, unit: str, default_folder: str, cm
         margin=dict(l=0, r=0, t=45, b=0),
     )
     fig.update_yaxes(scaleanchor="x", scaleratio=1)
-    st.plotly_chart(fig, use_container_width=True, key=f"anim_plot_{field_key}")
+    st.plotly_chart(fig, width='stretch', key=f"anim_plot_{field_key}")
 
     # Static plot inside expander only.
     with st.expander("Static plot", expanded=False):
@@ -1202,7 +1202,7 @@ def run_combo_tab():
             st.info(f"Found {res.get('file_count', 0)} .npy files in {label} ({os.path.basename(combo_folders[key])}/).")
             if res.get("sources"):
                 st.markdown(f"**📋 Loaded {len(res['sources'])} Valid Source Simulations**")
-                st.dataframe(sources_dataframe(res["sources"]), use_container_width=True, height=220)
+                st.dataframe(sources_dataframe(res["sources"]), width='stretch', height=220)
             for w in res.get("warnings", [])[:3]:
                 st.warning(w)
             if len(res.get("warnings", [])) > 3:
@@ -1225,7 +1225,7 @@ def run_combo_tab():
 
     st.markdown("### COMBO animation")
     combo_anim_fig = plot_combo_animation(temp_pred, eta_pred, vel_pred, vel_cmap, phase_threshold)
-    st.plotly_chart(combo_anim_fig, use_container_width=True, key="combo_animation_plot")
+    st.plotly_chart(combo_anim_fig, width='stretch', key="combo_animation_plot")
 
     st.markdown("### Static COMBO plot and PNG export")
     combo_static_key = "combo_time_index"

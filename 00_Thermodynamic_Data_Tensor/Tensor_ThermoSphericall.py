@@ -342,7 +342,7 @@ with st.sidebar:
     comp_sum = q_co + q_cr + q_fe
     if comp_sum > 1.0:
         st.warning(f"⚠️ Sum = {comp_sum:.2f} > 1.0")
-    eval_query = st.button("🔍 Evaluate", use_container_width=True)
+    eval_query = st.button("🔍 Evaluate", width='stretch')
 
     st.divider()
 
@@ -1400,7 +1400,7 @@ with st.expander("💾 Export & Data", expanded=False):
         st.dataframe(hist_df.style.format({
             "Co": "{:.3f}", "Cr": "{:.3f}", "Fe": "{:.3f}", "Ni": "{:.3f}",
             "G_LIQ": "{:.0f}", "G_FCC": "{:.0f}", "G_stable": "{:.0f}", "dG": "{:.0f}"
-        }), use_container_width=True)
+        }), width='stretch')
         if st.button("🗑️ Clear History"):
             st.session_state.query_history = []
             st.rerun()

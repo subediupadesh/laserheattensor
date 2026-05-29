@@ -357,7 +357,7 @@ st.sidebar.markdown(f"- **Hex-Hex Dihedral:** `{props['dihedral_hex_hex_deg']:.2
 # )
 
 # # --- DISPLAY IN STREAMLIT ---
-# st.plotly_chart(fig, use_container_width=True)
+# st.plotly_chart(fig, width='stretch')
 
 
 # ============================================================
@@ -665,7 +665,7 @@ config = {
 }
 
 # --- DISPLAY IN STREAMLIT ---
-st.plotly_chart(fig, use_container_width=True, config=config)
+st.plotly_chart(fig, width='stretch', config=config)
 
 
 # ============================================================

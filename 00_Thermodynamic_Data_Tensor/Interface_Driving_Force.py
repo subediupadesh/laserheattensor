@@ -1734,7 +1734,7 @@ with tab5:
                 data=png_bytes,
                 file_name="CoCrFeNi_temperature_composition_force_multiring_transparent.png",
                 mime="image/png",
-                use_container_width=True
+                width='stretch'
             )
 
         except Exception as e:

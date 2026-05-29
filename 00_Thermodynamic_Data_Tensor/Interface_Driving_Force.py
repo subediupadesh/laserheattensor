@@ -891,16 +891,30 @@ with tab2:
             yaxis="y2", line=dict(dash="dot", color="#d62728", width=2),
             marker=dict(symbol='square', size=6)
         ))
-        fig2.add_hline(y=0, line_dash="dash", line_color="gray", annotation_text="ΔG=0 boundary")
         fig2.update_layout(
             title=f"Driving Force vs Temperature<br><sup>Co:{x_co:.2f} Cr:{x_cr:.2f} Fe:{x_fe:.2f} Ni:{x_ni:.2f}</sup>",
-            xaxis_title="Temperature (K)",
-            yaxis=dict(title="ΔG (J/mol)", titlefont=dict(color="#2ca02c"), tickfont=dict(color="#2ca02c")),
-            yaxis2=dict(title="ΔGᵥ (MPa)", titlefont=dict(color="#d62728"),
-                       tickfont=dict(color="#d62728"), overlaying="y", side="right"),
+            xaxis=dict(
+                title=dict(text="Temperature (K)")
+            ),
+            yaxis=dict(
+                title=dict(
+                    text="ΔG (J/mol)",
+                    font=dict(color="#2ca02c")
+                ),
+                tickfont=dict(color="#2ca02c")
+            ),
+            yaxis2=dict(
+                title=dict(
+                    text="ΔGᵥ (MPa)",
+                    font=dict(color="#d62728")
+                ),
+                tickfont=dict(color="#d62728"),
+                overlaying="y",
+                side="right"
+            ),
             height=500,
-            hovermode='x unified',
-            legend=dict(x=0.01, y=0.99, bgcolor='rgba(255,255,255,0.8)')
+            hovermode="x unified",
+            legend=dict(x=0.01, y=0.99, bgcolor="rgba(255,255,255,0.8)")
         )
         st.plotly_chart(fig2, width='content')
         st.markdown("##### 🔍 Interpretation")

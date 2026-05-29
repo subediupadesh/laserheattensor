@@ -560,6 +560,9 @@ def run_field_tab(field_key: str, label: str, unit: str, default_folder: str, cm
             for weight, arr in zip(weights, arrays):
                 predicted += weight * arr
 
+            if field_key == "ETALIQ":
+                predicted = (predicted >= 0.5).astype(np.float64)
+
             st.session_state[f"pred_{field_key}"] = predicted
             st.session_state[f"res_{field_key}"] = results
             st.session_state[f"src_{field_key}"] = sources
@@ -678,13 +681,14 @@ def run_field_tab(field_key: str, label: str, unit: str, default_folder: str, cm
     st.markdown(f"### {label} animation")
 
     if is_phase:
-        anim_field = np.array([(predicted[k] >= phase_threshold).astype(float) for k in range(Nt)])
+        anim_field = predicted.astype(float)
         plot_unit = "phase"
         stat_field = predicted
         st.write(
-            f"Continuous LIQUID fraction: min={stat_field.min():.4f}, "
-            f"max={stat_field.max():.4f}, mean={stat_field.mean():.4f}. "
-            f"Binary animation uses threshold={phase_threshold:.2f}."
+            f"ETALIQ prediction has been binarized using fixed threshold 0.50: "
+            f"values >= 0.5 are LIQUID = 1 and values < 0.5 are FCC = 0. "
+            f"Binary field statistics: min={stat_field.min():.4f}, "
+            f"max={stat_field.max():.4f}, mean={stat_field.mean():.4f}."
         )
     else:
         anim_field = predicted
@@ -756,16 +760,17 @@ def run_field_tab(field_key: str, label: str, unit: str, default_folder: str, cm
         static_key = f"static_time_{field_key}"
         if static_key not in st.session_state:
             st.session_state[static_key] = Nt // 2
-        t_idx_static = int(st.session_state[static_key])
+        st.session_state[static_key] = min(max(int(st.session_state[static_key]), 0), Nt - 1)
+        t_idx_static = st.slider("Time index", 0, Nt - 1, key=static_key)
         current = predicted[t_idx_static]
 
         if is_phase:
-            display_field = (current >= phase_threshold).astype(float)
+            display_field = current.astype(float)
             stat_field = predicted[t_idx_static]
             st.write(
-                f"Continuous LIQUID fraction @ t={t_idx_static}: min={stat_field.min():.4f}, "
+                f"Binary ETALIQ field @ t={t_idx_static}: min={stat_field.min():.4f}, "
                 f"max={stat_field.max():.4f}, mean={stat_field.mean():.4f}. "
-                f"Binary static plot uses threshold={phase_threshold:.2f}."
+                f"Binarization used fixed threshold 0.50."
             )
         else:
             display_field = current
@@ -816,7 +821,6 @@ def run_field_tab(field_key: str, label: str, unit: str, default_folder: str, cm
         fig_static.tight_layout()
         st.pyplot(fig_static)
 
-        st.slider("Time index", 0, Nt - 1, t_idx_static, key=static_key)
 
         display_for_download = display_field
         t_idx_for_download = t_idx_static
@@ -852,8 +856,8 @@ def run_field_tab(field_key: str, label: str, unit: str, default_folder: str, cm
             "weights": results["combined_weights"],
         }
         if is_phase:
-            extra["binary_phase"] = (predicted >= phase_threshold).astype(np.uint8)
-            extra["threshold"] = phase_threshold
+            extra["binary_phase"] = predicted.astype(np.uint8)
+            extra["threshold"] = 0.5
         st.download_button(
             "Download .npz with metadata",
             data=npz_bytes(**extra),
@@ -922,6 +926,9 @@ def compute_prediction_for_folder(field_key: str, folder_path: str, use_composit
     predicted = np.zeros_like(arrays[0], dtype=np.float64)
     for weight, arr in zip(weights, arrays):
         predicted += weight * arr
+
+    if field_key == "ETALIQ":
+        predicted = (predicted >= 0.5).astype(np.float64)
 
     return {
         "ok": True,
@@ -1030,6 +1037,92 @@ def plot_combo_velocity(temp_pred: np.ndarray, eta_pred: np.ndarray, vel_pred: n
     return fig, vel_masked, stats
 
 
+
+
+def plot_field_animation(field_pred: np.ndarray, cmap_name: str, title: str, colorbar_title: str,
+                         hover_label: str, zmin: Optional[float] = None, zmax: Optional[float] = None,
+                         threshold_contour: Optional[float] = None) -> go.Figure:
+    """Create a standalone Plotly heatmap animation for one predicted field."""
+    Nt = field_pred.shape[0]
+    colorscale = mpl_to_plotly_colorscale(cmap_name)
+
+    global_min = float(np.nanmin(field_pred)) if zmin is None else float(zmin)
+    global_max = float(np.nanmax(field_pred)) if zmax is None else float(zmax)
+    if np.isclose(global_min, global_max):
+        global_max = global_min + 1e-12
+
+    ticks = np.linspace(global_min, global_max, 5)
+
+    def frame_data(k: int):
+        display_slice = np.flipud(np.asarray(field_pred[k], dtype=float))
+        heat = go.Heatmap(
+            z=display_slice,
+            colorscale=colorscale,
+            zmin=global_min,
+            zmax=global_max,
+            colorbar=dict(
+                title=colorbar_title,
+                tickmode="array",
+                tickvals=ticks.tolist(),
+                ticktext=[f"{v:.4g}" for v in ticks],
+            ),
+            hovertemplate=f"x=%{{x}}<br>y=%{{y}}<br>{hover_label}=%{{z:.4g}}<extra></extra>",
+            name=title,
+        )
+        traces = [heat]
+
+        if threshold_contour is not None:
+            if float(np.nanmin(display_slice)) <= threshold_contour <= float(np.nanmax(display_slice)):
+                traces.append(
+                    go.Contour(
+                        z=display_slice,
+                        contours=dict(
+                            coloring="lines",
+                            showlabels=False,
+                            start=float(threshold_contour),
+                            end=float(threshold_contour),
+                            size=1.0,
+                        ),
+                        line=dict(color="white", width=3),
+                        showscale=False,
+                        hoverinfo="skip",
+                        name="LIQUID/FCC interface",
+                    )
+                )
+        return traces
+
+    frames = [go.Frame(data=frame_data(k), name=f"t{k}") for k in range(Nt)]
+    fig = go.Figure(data=frame_data(0), frames=frames)
+    fig.update_layout(
+        title=title,
+        xaxis=dict(showticklabels=False, title=""),
+        yaxis=dict(showticklabels=False, title="", scaleanchor="x", scaleratio=1),
+        updatemenus=[{
+            "buttons": [
+                {"label": "Play", "method": "animate", "args": [None, {"frame": {"duration": 120, "redraw": True}, "fromcurrent": True}]},
+                {"label": "Pause", "method": "animate", "args": [[None], {"frame": {"duration": 0, "redraw": False}, "mode": "immediate"}]},
+            ],
+            "type": "buttons",
+            "x": 0.05,
+            "y": 0,
+        }],
+        sliders=[{
+            "active": 0,
+            "steps": [
+                {"method": "animate", "args": [[f"t{k}"], {"mode": "immediate", "frame": {"duration": 0, "redraw": True}}], "label": str(k)}
+                for k in range(Nt)
+            ],
+            "x": 0.1,
+            "len": 0.85,
+            "y": 0,
+            "currentvalue": {"prefix": "Time index: "},
+        }],
+        margin=dict(l=0, r=0, t=55, b=0),
+        height=720,
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
 
 def plot_combo_animation(temp_pred: np.ndarray, eta_pred: np.ndarray, vel_pred: np.ndarray,
                          cmap_name: str, threshold: float) -> go.Figure:
@@ -1158,9 +1251,9 @@ def plot_combo_animation(temp_pred: np.ndarray, eta_pred: np.ndarray, vel_pred: 
 def run_combo_tab():
     st.subheader("COMBO Prediction")
     st.markdown(
-        "This tab predicts TEMP, ETALIQ and VEL together, then plots only the velocity field. "
-        "Velocity is kept only inside the predicted LIQUID region; the FCC/solid region is set to 0. "
-        "The LIQUID/FCC boundary and the 800 K / 1800 K temperature contours are overlaid on the velocity plot."
+        "This tab predicts TEMP, ETALIQ and VEL together. "
+        "It visualizes temperature distribution, ETALIQ phase evolution, and velocity profile as separate Plotly animations. "
+        "For velocity, values are kept only inside the predicted LIQUID region; the FCC/solid region is set to 0, with LIQUID/FCC boundary and 800 K / 1800 K temperature contours overlaid."
     )
 
     c1, c2, c3 = st.columns(3)
@@ -1214,7 +1307,7 @@ def run_combo_tab():
         return
 
     temp_pred = combo["TEMP"]["prediction"]
-    eta_pred = np.clip(combo["ETALIQ"]["prediction"], 0.0, 1.0)
+    eta_pred = (combo["ETALIQ"]["prediction"] >= 0.5).astype(np.float64)
     vel_pred = combo["VEL"]["prediction"]
 
     if temp_pred.shape != eta_pred.shape or temp_pred.shape != vel_pred.shape:
@@ -1223,37 +1316,282 @@ def run_combo_tab():
 
     Nt, Ny, Nx = vel_pred.shape
 
-    st.markdown("### COMBO animation")
-    combo_anim_fig = plot_combo_animation(temp_pred, eta_pred, vel_pred, vel_cmap, phase_threshold)
-    st.plotly_chart(combo_anim_fig, width='stretch', key="combo_animation_plot")
+    st.markdown("### COMBO synchronized Plotly animation")
+    st.caption(
+        "Use the Plotly time-index slider at the bottom. It updates temperature, ETALIQ phase, and masked velocity together without refreshing the Streamlit page. ETALIQ is binarized with fixed threshold 0.50."
+    )
 
-    st.markdown("### Static COMBO plot and PNG export")
-    combo_static_key = "combo_time_index"
-    if combo_static_key not in st.session_state:
-        st.session_state[combo_static_key] = Nt // 2
-    t_idx = int(st.session_state[combo_static_key])
+    from plotly.subplots import make_subplots
 
-    fig_combo, vel_masked, stats = plot_combo_velocity(temp_pred, eta_pred, vel_pred, t_idx, vel_cmap, phase_threshold)
-    st.pyplot(fig_combo)
+    eta_global_min, eta_global_max = 0.0, 1.0
+    eta_ticks = np.array([0.0, 1.0])
 
-    st.slider("Time index", 0, Nt - 1, t_idx, key=combo_static_key)
+    liquid_masks = eta_pred >= 0.5
+    vel_masked_all = np.where(liquid_masks, vel_pred, 0.0)
 
+    def frame_min_max_ticks(arr: np.ndarray, n_ticks: int = 5):
+        arr = np.asarray(arr, dtype=float)
+        finite = arr[np.isfinite(arr)]
+        if finite.size == 0:
+            vmin, vmax = 0.0, 1.0
+        else:
+            vmin, vmax = float(np.nanmin(finite)), float(np.nanmax(finite))
+        if np.isclose(vmin, vmax):
+            pad = max(abs(vmax) * 1e-6, 1e-12)
+            vmin -= pad
+            vmax += pad
+        ticks = np.linspace(vmin, vmax, n_ticks)
+        return vmin, vmax, ticks
+
+    def combo_frame_traces(k: int):
+        temp_slice = np.asarray(temp_pred[k], dtype=float)
+        eta_slice = np.asarray(eta_pred[k], dtype=float)
+        vel_slice = np.asarray(vel_masked_all[k], dtype=float)
+
+        temp_display = np.flipud(temp_slice)
+        eta_display = np.flipud(eta_slice)
+        vel_display = np.flipud(vel_slice)
+
+        temp_frame_min, temp_frame_max, temp_ticks = frame_min_max_ticks(temp_display)
+        vel_frame_min, vel_frame_max, vel_ticks = frame_min_max_ticks(vel_display)
+
+        traces = [
+            go.Heatmap(
+                z=temp_display,
+                colorscale=mpl_to_plotly_colorscale(temp_cmap),
+                zmin=temp_frame_min,
+                zmax=temp_frame_max,
+                coloraxis=None,
+                colorbar=dict(
+                    title="Temperature (K)",
+                    x=1.02,
+                    y=0.855,
+                    len=0.25,
+                    tickmode="array",
+                    tickvals=temp_ticks.tolist(),
+                    ticktext=[f"{v:.4g}" for v in temp_ticks],
+                ),
+                hovertemplate="x=%{x}<br>y=%{y}<br>T=%{z:.4g} K<extra></extra>",
+                name="Temperature",
+                showscale=True,
+            ),
+            go.Heatmap(
+                z=eta_display,
+                colorscale=mpl_to_plotly_colorscale(phase_cmap),
+                zmin=eta_global_min,
+                zmax=eta_global_max,
+                colorbar=dict(
+                    title="ETALIQ",
+                    x=1.02,
+                    y=0.505,
+                    len=0.25,
+                    tickmode="array",
+                    tickvals=eta_ticks.tolist(),
+                    ticktext=["FCC = 0", "LIQUID = 1"],
+                ),
+                hovertemplate="x=%{x}<br>y=%{y}<br>ETALIQ=%{z:.4g}<extra></extra>",
+                name="ETALIQ",
+                showscale=True,
+            ),
+            go.Contour(
+                z=eta_display,
+                contours=dict(
+                    coloring="lines",
+                    showlabels=False,
+                    start=0.5,
+                    end=0.5,
+                    size=1.0,
+                ),
+                line=dict(color="white", width=3),
+                showscale=False,
+                hoverinfo="skip",
+                name="LIQUID/FCC interface",
+            ),
+            go.Heatmap(
+                z=vel_display,
+                colorscale=mpl_to_plotly_colorscale(vel_cmap),
+                zmin=vel_frame_min,
+                zmax=vel_frame_max,
+                colorbar=dict(
+                    title="Velocity",
+                    x=1.02,
+                    y=0.155,
+                    len=0.25,
+                    tickmode="array",
+                    tickvals=vel_ticks.tolist(),
+                    ticktext=[f"{v:.4g}" for v in vel_ticks],
+                ),
+                hovertemplate="x=%{x}<br>y=%{y}<br>velocity=%{z:.4g}<extra></extra>",
+                name="Masked velocity",
+                showscale=True,
+            ),
+            go.Contour(
+                z=eta_display,
+                contours=dict(
+                    coloring="lines",
+                    showlabels=False,
+                    start=0.5,
+                    end=0.5,
+                    size=1.0,
+                ),
+                line=dict(color="white", width=3),
+                showscale=False,
+                hoverinfo="skip",
+                name="LIQUID/FCC interface",
+            ),
+        ]
+
+        tmin = float(np.nanmin(temp_display))
+        tmax = float(np.nanmax(temp_display))
+        temp_levels = [lv for lv in [800.0, 1800.0] if tmin <= lv <= tmax]
+        if len(temp_levels) == 2:
+            z_temp, start_t, end_t, size_t, opacity_t = temp_display, 800.0, 1800.0, 1000.0, 1.0
+        elif len(temp_levels) == 1:
+            z_temp, start_t, end_t, size_t, opacity_t = temp_display, temp_levels[0], temp_levels[0], 1.0, 1.0
+        else:
+            z_temp, start_t, end_t, size_t, opacity_t = np.zeros_like(temp_display), 0.0, 0.0, 1.0, 0.0
+
+        traces.append(
+            go.Contour(
+                z=z_temp,
+                contours=dict(
+                    coloring="lines",
+                    showlabels=True,
+                    labelfont=dict(size=12, color="black"),
+                    start=start_t,
+                    end=end_t,
+                    size=size_t,
+                ),
+                line=dict(color="black", width=2),
+                showscale=False,
+                opacity=opacity_t,
+                hoverinfo="skip",
+                name="Temperature contours",
+            )
+        )
+        return traces
+
+    combo_fig = make_subplots(
+        rows=3,
+        cols=1,
+        shared_xaxes=False,
+        shared_yaxes=False,
+        vertical_spacing=0.065,
+        subplot_titles=(
+            "1. Temperature distribution",
+            "2. ETALIQ phase evolution",
+            "3. Velocity profile masked by LIQUID phase",
+        ),
+    )
+
+    initial_traces = combo_frame_traces(0)
+    combo_fig.add_trace(initial_traces[0], row=1, col=1)
+    combo_fig.add_trace(initial_traces[1], row=2, col=1)
+    combo_fig.add_trace(initial_traces[2], row=2, col=1)
+    combo_fig.add_trace(initial_traces[3], row=3, col=1)
+    combo_fig.add_trace(initial_traces[4], row=3, col=1)
+    combo_fig.add_trace(initial_traces[5], row=3, col=1)
+
+    frame_trace_indexes = [0, 1, 2, 3, 4, 5]
+    combo_fig.frames = [
+        go.Frame(
+            data=combo_frame_traces(k),
+            traces=frame_trace_indexes,
+            name=f"t{k}",
+            layout=go.Layout(title_text=f"COMBO Prediction | Time index: {k}"),
+        )
+        for k in range(Nt)
+    ]
+
+    steps = [
+        {
+            "method": "animate",
+            "args": [
+                [f"t{k}"],
+                {
+                    "mode": "immediate",
+                    "frame": {"duration": 0, "redraw": True},
+                    "transition": {"duration": 0},
+                },
+            ],
+            "label": str(k),
+        }
+        for k in range(Nt)
+    ]
+
+    combo_fig.update_layout(
+        title="COMBO Prediction | Time index: 0",
+        height=1850,
+        margin=dict(l=25, r=105, t=90, b=130),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        updatemenus=[
+            {
+                "buttons": [
+                    {
+                        "label": "Play",
+                        "method": "animate",
+                        "args": [
+                            None,
+                            {
+                                "frame": {"duration": 120, "redraw": True},
+                                "transition": {"duration": 0},
+                                "fromcurrent": True,
+                            },
+                        ],
+                    },
+                    {
+                        "label": "Pause",
+                        "method": "animate",
+                        "args": [
+                            [None],
+                            {
+                                "frame": {"duration": 0, "redraw": False},
+                                "mode": "immediate",
+                                "transition": {"duration": 0},
+                            },
+                        ],
+                    },
+                ],
+                "type": "buttons",
+                "direction": "left",
+                "x": 0.0,
+                "y": -0.055,
+                "xanchor": "left",
+                "yanchor": "top",
+            }
+        ],
+        sliders=[
+            {
+                "active": 0,
+                "steps": steps,
+                "x": 0.12,
+                "y": -0.06,
+                "len": 0.86,
+                "xanchor": "left",
+                "yanchor": "top",
+                "pad": {"t": 35, "b": 10},
+                "currentvalue": {"prefix": "Time index: ", "font": {"size": 18}},
+            }
+        ],
+    )
+
+    for axis_name in ["xaxis", "xaxis2", "xaxis3", "yaxis", "yaxis2", "yaxis3"]:
+        combo_fig.layout[axis_name].showticklabels = False
+        combo_fig.layout[axis_name].title = ""
+
+    combo_fig.update_yaxes(scaleanchor="x", scaleratio=1, row=1, col=1)
+    combo_fig.update_yaxes(scaleanchor="x2", scaleratio=1, row=2, col=1)
+    combo_fig.update_yaxes(scaleanchor="x3", scaleratio=1, row=3, col=1)
+
+    st.plotly_chart(combo_fig, width='stretch', key="combo_three_panel_single_plotly_slider")
+
+    vel_values_liquid = vel_pred[liquid_masks]
+    mean_liquid = float(np.nanmean(vel_values_liquid)) if vel_values_liquid.size else 0.0
     st.write(
-        f"At t={t_idx}: velocity range shown = {stats['vel_min']:.4g} to {stats['vel_max']:.4g}; "
-        f"mean velocity in LIQUID = {stats['vel_mean_liquid']:.4g}; "
-        f"LIQUID area fraction = {stats['liquid_fraction']:.4f}."
+        "Colorbar limits for TEMP and masked VEL are updated from the current Plotly time-index frame. "
+        f"Mean velocity over LIQUID pixels across all time steps = {mean_liquid:.4g}."
     )
-
-    png_buffer = transparent_png_bytes(fig_combo)
-    base_name = f"COMBO_velocity_masked_p{int(p_target)}s{int(v_target_cm_s)}_Co{co_target:.2f}_Cr{cr_target:.2f}_Fe{fe_target:.2f}_t{t_idx}.png"
-    st.download_button(
-        "Download transparent PNG for this time index",
-        data=png_buffer,
-        file_name=base_name,
-        mime="image/png",
-        key="download_combo_png",
-    )
-    plt.close(fig_combo)
 
 # ============================================================
 # Tabs

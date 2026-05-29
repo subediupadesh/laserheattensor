@@ -358,7 +358,10 @@ def render_plotly_with_live_transparent_download(
     }})();
     </script>
     """
-    components.html(html, height=height, scrolling=False)
+    if hasattr(st, "iframe"):
+        st.iframe(html, height=height)
+    else:
+        components.html(html, height=height, scrolling=False)
 
 
 def choose_folder_dialog(initial_dir: str) -> Optional[str]:
@@ -735,8 +738,8 @@ def plot_source_target_weight_visualization(
             showlegend=False,
         ))
 
+        axis_title_font_3d = dict(size=22, color="black", family="Arial Black")
         axis_common = dict(
-            titlefont=dict(size=22, color="black", family="Arial Black"),
             tickfont=dict(size=18, color="black", family="Arial Black"),
             ticklen=int(axis_tick_label_padding),
             tickwidth=3,
@@ -765,9 +768,9 @@ def plot_source_target_weight_visualization(
                 xanchor="center",
             ),
             scene=dict(
-                xaxis=dict(title=dict(text=f"<b>{axis_title_pad}Power, P (W){axis_title_pad}</b>"), **axis_common),
-                yaxis=dict(title=dict(text=f"<b>{axis_title_pad}Scan speed, v (cm/s){axis_title_pad}</b>"), **axis_common),
-                zaxis=dict(title=dict(text=f"<b>{axis_title_pad}Composition distance{axis_title_pad}</b>"), **axis_common),
+                xaxis=dict(title=dict(text=f"<b>{axis_title_pad}Power, P (W){axis_title_pad}</b>", font=axis_title_font_3d), **axis_common),
+                yaxis=dict(title=dict(text=f"<b>{axis_title_pad}Scan speed, v (cm/s){axis_title_pad}</b>", font=axis_title_font_3d), **axis_common),
+                zaxis=dict(title=dict(text=f"<b>{axis_title_pad}Composition distance{axis_title_pad}</b>", font=axis_title_font_3d), **axis_common),
                 camera=dict(eye=dict(x=1.65, y=1.75, z=1.25)),
                 aspectmode="cube",
             ),
@@ -1314,7 +1317,7 @@ def plot_source_target_weight_visualization(
         fig_bar.update_xaxes(
             tickangle=-30,
             tickfont=dict(size=16, color="black", family="Arial Black"),
-            titlefont=dict(size=22, color="black", family="Arial Black"),
+            title=dict(font=dict(size=22, color="black", family="Arial Black")),
             linecolor="black",
             linewidth=3,
             mirror=True,
@@ -1323,7 +1326,7 @@ def plot_source_target_weight_visualization(
         )
         fig_bar.update_yaxes(
             tickfont=dict(size=16, color="black", family="Arial Black"),
-            titlefont=dict(size=22, color="black", family="Arial Black"),
+            title=dict(font=dict(size=22, color="black", family="Arial Black")),
             linecolor="black",
             linewidth=3,
             mirror=True,
@@ -1508,7 +1511,7 @@ def plot_source_target_weight_visualization(
             linewidth=3.0,
             mirror=True,
             tickfont=dict(size=18, color="black", family="Arial Black"),
-            titlefont=dict(size=20, color="black", family="Arial Black"),
+            title=dict(font=dict(size=20, color="black", family="Arial Black")),
         )
         fig_qk.update_yaxes(
             showgrid=True,
@@ -1518,7 +1521,7 @@ def plot_source_target_weight_visualization(
             linewidth=3.0,
             mirror=True,
             tickfont=dict(size=18, color="black", family="Arial Black"),
-            titlefont=dict(size=20, color="black", family="Arial Black"),
+            title=dict(font=dict(size=20, color="black", family="Arial Black")),
             autorange="reversed",
         )
 
@@ -1744,9 +1747,9 @@ def run_field_tab(field_key: str, label: str, unit: str, default_folder: str, cm
             fig_param.update_layout(
                 title=dict(text="<b>3D normalized parameter space</b>", x=0.5, font=dict(size=18, color="black", family="Arial Black")),
                 scene=dict(
-                    xaxis=dict(title="Normalized scan speed", titlefont=dict(size=14, color="black"), tickfont=dict(size=12, color="black"), linecolor="black", linewidth=3, showbackground=True, backgroundcolor="rgba(245,245,245,0.75)"),
-                    yaxis=dict(title="Normalized power", titlefont=dict(size=14, color="black"), tickfont=dict(size=12, color="black"), linecolor="black", linewidth=3, showbackground=True, backgroundcolor="rgba(245,245,245,0.75)"),
-                    zaxis=dict(title="cTF index / 4", titlefont=dict(size=14, color="black"), tickfont=dict(size=12, color="black"), linecolor="black", linewidth=3, showbackground=True, backgroundcolor="rgba(245,245,245,0.75)", tickmode="array", tickvals=[0, 0.25, 0.5, 0.75, 1.0], ticktext=["cTF0", "cTF1", "cTF2", "cTF3", "cTF4"]),
+                    xaxis=dict(title=dict(text="Normalized scan speed", font=dict(size=14, color="black")), tickfont=dict(size=12, color="black"), linecolor="black", linewidth=3, showbackground=True, backgroundcolor="rgba(245,245,245,0.75)"),
+                    yaxis=dict(title=dict(text="Normalized power", font=dict(size=14, color="black")), tickfont=dict(size=12, color="black"), linecolor="black", linewidth=3, showbackground=True, backgroundcolor="rgba(245,245,245,0.75)"),
+                    zaxis=dict(title=dict(text="cTF index / 4", font=dict(size=14, color="black")), tickfont=dict(size=12, color="black"), linecolor="black", linewidth=3, showbackground=True, backgroundcolor="rgba(245,245,245,0.75)", tickmode="array", tickvals=[0, 0.25, 0.5, 0.75, 1.0], ticktext=["cTF0", "cTF1", "cTF2", "cTF3", "cTF4"]),
                 ),
                 margin=dict(l=0, r=0, t=50, b=0),
                 height=560,
@@ -1837,8 +1840,8 @@ def run_field_tab(field_key: str, label: str, unit: str, default_folder: str, cm
                 plot_bgcolor="white",
                 font=dict(size=13, color="black", family="Arial Black"),
             )
-            fig_qk.update_xaxes(showgrid=True, gridcolor="rgba(20,20,20,0.18)", gridwidth=1.2, linecolor="black", linewidth=2.0, tickfont=dict(size=12, color="black", family="Arial Black"), titlefont=dict(size=14, color="black", family="Arial Black"))
-            fig_qk.update_yaxes(showgrid=True, gridcolor="rgba(20,20,20,0.18)", gridwidth=1.2, linecolor="black", linewidth=2.0, tickfont=dict(size=12, color="black", family="Arial Black"), titlefont=dict(size=14, color="black", family="Arial Black"), autorange="reversed")
+            fig_qk.update_xaxes(showgrid=True, gridcolor="rgba(20,20,20,0.18)", gridwidth=1.2, linecolor="black", linewidth=2.0, tickfont=dict(size=12, color="black", family="Arial Black"), title=dict(font=dict(size=14, color="black", family="Arial Black")))
+            fig_qk.update_yaxes(showgrid=True, gridcolor="rgba(20,20,20,0.18)", gridwidth=1.2, linecolor="black", linewidth=2.0, tickfont=dict(size=12, color="black", family="Arial Black"), title=dict(font=dict(size=14, color="black", family="Arial Black")), autorange="reversed")
 
             render_plotly_with_live_transparent_download(
                 fig_qk,
@@ -1928,9 +1931,10 @@ def run_field_tab(field_key: str, label: str, unit: str, default_folder: str, cm
     # Static plot inside expander only.
     with st.expander("Static plot", expanded=False):
         static_key = f"static_time_{field_key}"
+        static_slider_kwargs = {"key": static_key}
         if static_key not in st.session_state:
-            st.session_state[static_key] = Nt // 2
-        t_idx_static = int(st.session_state[static_key])
+            static_slider_kwargs["value"] = Nt // 2
+        t_idx_static = int(st.slider("Time index", 0, Nt - 1, **static_slider_kwargs))
         current = predicted[t_idx_static]
 
         if is_phase:
@@ -1989,8 +1993,6 @@ def run_field_tab(field_key: str, label: str, unit: str, default_folder: str, cm
         cbar.ax.tick_params(labelsize=11)
         fig_static.tight_layout()
         st.pyplot(fig_static)
-
-        st.slider("Time index", 0, Nt - 1, t_idx_static, key=static_key)
 
         display_for_download = display_field
         t_idx_for_download = t_idx_static
@@ -2401,14 +2403,13 @@ def run_combo_tab():
 
     st.markdown("### Static COMBO plot and PNG export")
     combo_static_key = "combo_time_index"
+    combo_slider_kwargs = {"key": combo_static_key}
     if combo_static_key not in st.session_state:
-        st.session_state[combo_static_key] = Nt // 2
-    t_idx = int(st.session_state[combo_static_key])
+        combo_slider_kwargs["value"] = Nt // 2
+    t_idx = int(st.slider("Time index", 0, Nt - 1, **combo_slider_kwargs))
 
     fig_combo, vel_masked, stats = plot_combo_velocity(temp_pred, eta_pred, vel_pred, t_idx, vel_cmap, phase_threshold)
     st.pyplot(fig_combo)
-
-    st.slider("Time index", 0, Nt - 1, t_idx, key=combo_static_key)
 
     st.write(
         f"At t={t_idx}: velocity range shown = {stats['vel_min']:.4g} to {stats['vel_max']:.4g}; "

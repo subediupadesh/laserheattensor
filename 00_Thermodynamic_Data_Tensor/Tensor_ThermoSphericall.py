@@ -325,7 +325,8 @@ with st.sidebar:
     elif preset == "Transition Region":
         default_T = T_list[len(T_list)//2] if T_list else 1000
     else:
-        default_T = T_list[len(T_list)//2] if T_list else 1000
+        # default_T = T_list[len(T_list)//2] if T_list else 1000
+        default_T = 500
 
     T_val = st.select_slider("T (K)", options=T_list, value=default_T)
     T_factor = (T_val - T_min) / T_range if T_range > 0 else 0.5
@@ -397,10 +398,10 @@ with st.sidebar:
             liq_opacity = 0.70
             fcc_opacity = 0.70
         else:
-            sh_R_fixed = 0.50
+            sh_R_fixed = 0.46
             sh_l_max = 3
-            liq_opacity = 0.60
-            fcc_opacity = 0.45
+            liq_opacity = 0.00
+            fcc_opacity = 1.00
 
         sh_R_fixed = st.slider("Base Radius", 0.1, 0.9, sh_R_fixed, 0.01)
 
@@ -414,16 +415,16 @@ with st.sidebar:
             l_max_liq = max(1, int(sh_l_max_override - 1.5 * T_factor))
             l_max_fcc = max(2, int(sh_l_max_override + 1.0 * (1.0 - T_factor)))
 
-        sh_n_theta = st.slider("Theta Resolution", 30, 150, 70, step=10)
-        sh_n_phi = st.slider("Phi Resolution", 30, 150, 70, step=10)
+        sh_n_theta = st.slider("Theta Resolution", 30, 150, 80, step=10)
+        sh_n_phi = st.slider("Phi Resolution", 30, 150, 40, step=10)
 
         liq_cmap = st.selectbox(
             "LIQUID Colormap", COLORMAPS,
-            index=COLORMAPS.index("Reds") if "Reds" in COLORMAPS else 0
+            index=COLORMAPS.index("RdYlGn") if "RdYlGn" in COLORMAPS else 0
         )
         fcc_cmap = st.selectbox(
             "FCC Colormap", COLORMAPS,
-            index=COLORMAPS.index("Blues") if "Blues" in COLORMAPS else 0
+            index=COLORMAPS.index("Magma") if "Magma" in COLORMAPS else 0
         )
 
         liq_opacity = st.slider("LIQUID Opacity", 0.0, 1.0, liq_opacity, 0.05)

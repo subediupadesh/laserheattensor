@@ -29,7 +29,7 @@ jobs:
       - name: Set up Python
         run: uv python install 3.11
 
-      - name: Export Gibbs Energy Viz app
+      - name: Export 8D Parallel Plot app
         run: |
           uvx marimo export html-wasm 0_Thermodynamic_Data_Tensor/8D_Parallel_Plot_Marimo.py -o _site/8D_ParallelPlot.html --mode run
 
@@ -47,7 +47,27 @@ jobs:
 
       - name: Copy ML data files
         run: |
-          cp -r 3_ML_Model/MLDATA _site/MLDATA
+          mkdir -p _site/MLDATA
+          cp -r 3_ML_Model/MLDATA/* _site/MLDATA/
+
+      - name: Check exported thermodynamic CSV files
+        run: |
+          echo "Checking CSV files:"
+          find _site/csv_files -maxdepth 1 -type f | sort | head -40
+
+      - name: Check exported ML data files
+        run: |
+          echo "Checking TEMP files:"
+          find _site/MLDATA/TEMP -maxdepth 1 -type f | sort | head -40
+
+          echo "Checking ETALIQ files:"
+          find _site/MLDATA/ETALIQ -maxdepth 1 -type f | sort | head -40
+
+          echo "Checking VEL files:"
+          find _site/MLDATA/VEL -maxdepth 1 -type f | sort | head -40
+
+          echo "Checking COMP files:"
+          find _site/MLDATA/COMP -maxdepth 1 -type f | sort | head -40 || true
 
       - name: Create landing page
         run: |
@@ -141,15 +161,6 @@ jobs:
           </body>
           </html>
           EOF
-
-      - name: Check exported files
-        run: |
-          echo "Checking _site:"
-          ls -la _site
-          echo "Checking CSV files:"
-          ls -la _site/csv_files | head -40
-          echo "Checking MLDATA files:"
-          find _site/MLDATA -maxdepth 2 -type f | head -40
 
       - name: Disable Jekyll
         run: touch _site/.nojekyll

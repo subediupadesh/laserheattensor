@@ -661,7 +661,7 @@ def _(
             processing_status,
             mo.md("## Interactive Parallel Plot"),
             png_download,
-            interactive_plot,
+            # interactive_plot,
             mo.md("## Hovered / Selected Line Values"),
             manual_line_id,
             metric_view,

@@ -38,6 +38,14 @@ jobs:
           mkdir -p _site/0_Thermodynamic_Data_Tensor
           cp -r 0_Thermodynamic_Data_Tensor/csv_files _site/0_Thermodynamic_Data_Tensor/csv_files
 
+      - name: Check exported files
+        run: |
+          echo "Checking _site contents:"
+          ls -R _site/0_Thermodynamic_Data_Tensor/csv_files | head -40
+
+      - name: Disable Jekyll
+        run: touch _site/.nojekyll
+
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

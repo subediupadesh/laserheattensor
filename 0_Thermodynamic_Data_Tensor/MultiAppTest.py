@@ -11,7 +11,7 @@
 import marimo
 
 __generated_with = "0.23.0"
-app = marimo.App(width="full", app_title="TEST MULTI APP Interactive 8D Gibbs Parallel Plot")
+app = marimo.App(width="full", app_title="Interactive test 8D Gibbs Parallel Plot")
 
 
 @app.cell(hide_code=True)

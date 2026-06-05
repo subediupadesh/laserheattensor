@@ -31,7 +31,7 @@ jobs:
 
       - name: Export Gibbs Energy Viz app
         run: |
-          uvx marimo export html-wasm 0_Thermodynamic_Data_Tensor/GibbsEnergyViz_Marimo.py -o _site/Gibbs_EnergyViz.html --mode run
+          uvx marimo export html-wasm 0_Thermodynamic_Data_Tensor/8D_Parallel_Plot_Marimo.py -o _site/8D_ParallelPlot.html --mode run
 
       - name: Export MultiApp
         run: |
@@ -121,7 +121,7 @@ jobs:
               <p>Select an interactive marimo app to open.</p>
 
               <div class="buttons">
-                <a class="button" href="./Gibbs_EnergyViz.html">Gibbs_EnergyViz</a>
+                <a class="button" href="./8D_ParallelPlot.html">8D_ParallelPlot</a>
                 <a class="button" href="./MultiApp.html">MultiApp</a>
               </div>
 

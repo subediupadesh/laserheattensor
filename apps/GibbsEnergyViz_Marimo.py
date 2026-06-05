@@ -44,7 +44,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    csv_folder = mo.ui.text(value="../0_Thermodynamic_Data_Tensor/csv_files/", label="CSV folder")
+    # csv_folder = mo.ui.text(value="../0_Thermodynamic_Data_Tensor/csv_files/", label="CSV folder") ## For local use
+    csv_folder = mo.ui.text(value="0_Thermodynamic_Data_Tensor/csv_files/", label="CSV folder")
     T_min_input = mo.ui.number(value=300, step=100, label="Minimum temperature [K]")
     T_max_input = mo.ui.number(value=3300, step=100, label="Maximum temperature [K]")
     T_step_input = mo.ui.number(value=100, step=100, label="Temperature step [K]")

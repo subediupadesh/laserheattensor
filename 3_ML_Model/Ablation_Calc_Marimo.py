@@ -317,7 +317,7 @@ def _(CTF_TABLE, DEFAULT_DIRS, ELEMENTS, mo, np, os, pd, CMAP_OPTIONS):
     )
     p_target = mo.ui.number(start=300, stop=800, step=10, value=370, label="Power, P (W)")
     v_target_cm_s = mo.ui.number(start=40, stop=80, step=5, value=50, label="Scan speed, v (cm/s)")
-    ctf_options = [f"cTF{k}" for k in sorted(CTF_TABLE.keys())] + ["cTF_New"]
+    ctf_options = [f"cTF{ctf_key}" for ctf_key in sorted(CTF_TABLE.keys())] + ["cTF_New"]
     target_ctf_choice = mo.ui.dropdown(options=ctf_options, value="cTF0", label="Target composition set")
 
     liq_co = mo.ui.slider(0.0, 1.0, step=0.01, value=0.35, label="Custom LIQ Co")
@@ -664,8 +664,18 @@ def _(mo, param_fig, prediction_result, weights_table):
 
 @app.cell
 def _(go, mpl_to_plotly_colorscale, np):
+    def _thin_for_marimo_plot(field_pred, max_side=220, max_frames=10):
+        _arr = np.asarray(field_pred, dtype=float)
+        _nt, _ny, _nx = _arr.shape
+        _t_stride = max(1, int(np.ceil(_nt / max_frames)))
+        _xy_stride = max(1, int(np.ceil(max(_ny, _nx) / max_side)))
+        _thin = _arr[::_t_stride, ::_xy_stride, ::_xy_stride]
+        _time_labels = list(range(0, _nt, _t_stride))
+        return _thin, _time_labels, _t_stride, _xy_stride
+
     def plot_field_animation(field_pred, cmap_name, title, colorbar_title, is_phase=False):
-        field_pred = np.asarray(field_pred, dtype=float)
+        original_shape = np.asarray(field_pred).shape
+        field_pred, time_labels, t_stride, xy_stride = _thin_for_marimo_plot(field_pred)
         Nt = field_pred.shape[0]
         colorscale = mpl_to_plotly_colorscale(cmap_name)
         global_min = 0.0 if is_phase else float(np.nanmin(field_pred))
@@ -687,8 +697,9 @@ def _(go, mpl_to_plotly_colorscale, np):
 
         frames = [go.Frame(data=[heat(k)], name=f"t{k}") for k in range(Nt)]
         fig = go.Figure(data=[heat(0)], frames=frames)
+        _display_note = f"displayed as {field_pred.shape} from full {original_shape}; time stride={t_stride}, spatial stride={xy_stride}"
         fig.update_layout(
-            title=title,
+            title=f"{title}<br><sup>{_display_note}</sup>",
             xaxis=dict(showticklabels=False, title=""),
             yaxis=dict(showticklabels=False, title="", scaleanchor="x", scaleratio=1),
             updatemenus=[{
@@ -703,7 +714,7 @@ def _(go, mpl_to_plotly_colorscale, np):
             sliders=[{
                 "active": 0,
                 "steps": [
-                    {"method": "animate", "args": [[f"t{k}"], {"mode": "immediate", "frame": {"duration": 0, "redraw": True}}], "label": str(k)}
+                    {"method": "animate", "args": [[f"t{k}"], {"mode": "immediate", "frame": {"duration": 0, "redraw": True}}], "label": str(time_labels[k])}
                     for k in range(Nt)
                 ],
                 "x": 0.1,
@@ -723,7 +734,7 @@ def _(cmap_choice, comp_cmap, field_key, np, phase_cmap, plot_field_animation, p
     field_fig = None
     stats_text = ""
     if prediction_result and prediction_result.get("ok", False):
-        pred = prediction_result["prediction"]
+        _pred = prediction_result["prediction"]
         cmap_by_field = {
             "TEMP": temp_cmap.value,
             "ETALIQ": phase_cmap.value,
@@ -738,15 +749,15 @@ def _(cmap_choice, comp_cmap, field_key, np, phase_cmap, plot_field_animation, p
         }
         is_phase = field_key == "ETALIQ"
         field_fig = plot_field_animation(
-            pred,
+            _pred,
             cmap_by_field.get(field_key, cmap_choice.value),
             f"{field_key} prediction",
             unit_by_field.get(field_key, "value"),
             is_phase=is_phase,
         )
         stats_text = (
-            f"Shape = {pred.shape}; min = {float(np.nanmin(pred)):.6g}; "
-            f"max = {float(np.nanmax(pred)):.6g}; mean = {float(np.nanmean(pred)):.6g}"
+            f"Shape = {_pred.shape}; min = {float(np.nanmin(_pred)):.6g}; "
+            f"max = {float(np.nanmax(_pred)):.6g}; mean = {float(np.nanmean(_pred)):.6g}"
         )
     return field_fig, stats_text
 
@@ -763,31 +774,35 @@ def _(field_fig, mo, stats_text):
 
 @app.cell
 def _(io, np, prediction_result):
-    full_npy_bytes = None
     full_npz_bytes = None
+    download_note = ""
     if prediction_result and prediction_result.get("ok", False):
-        pred = prediction_result["prediction"]
-        buf_npy = io.BytesIO()
-        np.save(buf_npy, pred)
-        full_npy_bytes = buf_npy.getvalue()
+        download_pred = prediction_result["prediction"]
         buf_npz = io.BytesIO()
         np.savez_compressed(
             buf_npz,
-            field=pred,
+            field=download_pred,
             weights=prediction_result["results"]["combined_weights"],
         )
-        full_npz_bytes = buf_npz.getvalue()
-    return full_npy_bytes, full_npz_bytes
+        _candidate_npz = buf_npz.getvalue()
+        if len(_candidate_npz) <= 8_000_000:
+            full_npz_bytes = _candidate_npz
+        else:
+            download_note = (
+                f"Compressed prediction is {len(_candidate_npz) / 1_000_000:.1f} MB, "
+                "so the in-browser download button is hidden to avoid marimo output-size errors. "
+                "Use the app output visually, or save the prediction from a script if you need the full array."
+            )
+    return download_note, full_npz_bytes
 
 
 @app.cell
-def _(field_key, full_npy_bytes, full_npz_bytes, mo, p_target, v_target_cm_s):
-    if full_npy_bytes is not None:
+def _(download_note, field_key, full_npz_bytes, mo, p_target, v_target_cm_s):
+    if full_npz_bytes is not None:
         base = f"{field_key}_pred_p{int(float(p_target.value))}s{int(float(v_target_cm_s.value))}"
-        downloads = mo.hstack([
-            mo.download(data=full_npy_bytes, filename=f"{base}_full.npy", mimetype="application/octet-stream", label="Download full prediction .npy"),
-            mo.download(data=full_npz_bytes, filename=f"{base}.npz", mimetype="application/octet-stream", label="Download .npz with weights"),
-        ])
+        downloads = mo.download(data=full_npz_bytes, filename=f"{base}.npz", mimetype="application/octet-stream", label="Download compressed .npz with weights")
+    elif download_note:
+        downloads = mo.md(download_note)
     else:
         downloads = mo.md("")
     downloads
@@ -796,12 +811,28 @@ def _(field_key, full_npy_bytes, full_npz_bytes, mo, p_target, v_target_cm_s):
 
 @app.cell
 def _(combo_result, go, mpl_to_plotly_colorscale, np, phase_cmap, temp_cmap, vel_cmap):
+    def _thin_combo_for_marimo_plot(_temp, _eta, _vel, max_side=150, max_frames=8):
+        _nt, _ny, _nx = _temp.shape
+        _t_stride = max(1, int(np.ceil(_nt / max_frames)))
+        _xy_stride = max(1, int(np.ceil(max(_ny, _nx) / max_side)))
+        _time_labels = list(range(0, _nt, _t_stride))
+        return (
+            _temp[::_t_stride, ::_xy_stride, ::_xy_stride],
+            _eta[::_t_stride, ::_xy_stride, ::_xy_stride],
+            _vel[::_t_stride, ::_xy_stride, ::_xy_stride],
+            _time_labels,
+            _t_stride,
+            _xy_stride,
+        )
+
     def make_combo_fig(combo):
         temp_pred = np.asarray(combo["TEMP"]["prediction"], dtype=float)
         eta_pred = (np.asarray(combo["ETALIQ"]["prediction"], dtype=float) >= 0.5).astype(float)
         vel_pred = np.asarray(combo["VEL"]["prediction"], dtype=float)
         if temp_pred.shape != eta_pred.shape or temp_pred.shape != vel_pred.shape:
             raise ValueError(f"Shapes must match: TEMP={temp_pred.shape}, ETALIQ={eta_pred.shape}, VEL={vel_pred.shape}")
+        original_shape = temp_pred.shape
+        temp_pred, eta_pred, vel_pred, time_labels, t_stride, xy_stride = _thin_combo_for_marimo_plot(temp_pred, eta_pred, vel_pred)
         Nt = temp_pred.shape[0]
         liquid_mask = eta_pred >= 0.5
         vel_masked = np.where(liquid_mask, vel_pred, 0.0)
@@ -841,9 +872,9 @@ def _(combo_result, go, mpl_to_plotly_colorscale, np, phase_cmap, temp_cmap, vel
         fig.add_trace(init[2], row=2, col=1)
         fig.add_trace(init[3], row=3, col=1)
         fig.add_trace(init[4], row=3, col=1)
-        fig.frames = [go.Frame(data=traces(k), traces=[0, 1, 2, 3, 4], name=f"t{k}") for k in range(Nt)]
+        fig.frames = [go.Frame(data=traces(frame_idx), traces=[0, 1, 2, 3, 4], name=f"t{frame_idx}") for frame_idx in range(Nt)]
         fig.update_layout(
-            title="COMBO Prediction",
+            title=f"COMBO Prediction<br><sup>displayed as {temp_pred.shape} from full {original_shape}; time stride={t_stride}, spatial stride={xy_stride}</sup>",
             height=1700,
             margin=dict(l=25, r=120, t=90, b=120),
             updatemenus=[{"buttons": [
@@ -851,8 +882,8 @@ def _(combo_result, go, mpl_to_plotly_colorscale, np, phase_cmap, temp_cmap, vel
                 {"label": "Pause", "method": "animate", "args": [[None], {"frame": {"duration": 0, "redraw": False}, "mode": "immediate"}]},
             ], "type": "buttons", "x": 0, "y": -0.04}],
             sliders=[{"active": 0, "steps": [
-                {"method": "animate", "args": [[f"t{k}"], {"mode": "immediate", "frame": {"duration": 0, "redraw": True}}], "label": str(k)}
-                for k in range(Nt)
+                {"method": "animate", "args": [[f"t{frame_idx}"], {"mode": "immediate", "frame": {"duration": 0, "redraw": True}}], "label": str(time_labels[frame_idx])}
+                for frame_idx in range(Nt)
             ], "x": 0.12, "len": 0.86, "y": -0.05, "currentvalue": {"prefix": "Time index: "}}],
         )
         for axis_name in ["xaxis", "xaxis2", "xaxis3", "yaxis", "yaxis2", "yaxis3"]:
@@ -867,10 +898,10 @@ def _(combo_result, go, mpl_to_plotly_colorscale, np, phase_cmap, temp_cmap, vel
     combo_error = ""
     if combo_result:
         try:
-            if all(combo_result.get(k, {}).get("ok", False) for k in ["TEMP", "ETALIQ", "VEL"]):
+            if all(combo_result.get(combo_key, {}).get("ok", False) for combo_key in ["TEMP", "ETALIQ", "VEL"]):
                 combo_fig = make_combo_fig(combo_result)
             else:
-                messages = [combo_result.get(k, {}).get("message", f"{k} failed") for k in ["TEMP", "ETALIQ", "VEL"] if not combo_result.get(k, {}).get("ok", False)]
+                messages = [combo_result.get(combo_key, {}).get("message", f"{combo_key} failed") for combo_key in ["TEMP", "ETALIQ", "VEL"] if not combo_result.get(combo_key, {}).get("ok", False)]
                 combo_error = "\n".join(messages)
         except Exception as exc:
             combo_error = str(exc)

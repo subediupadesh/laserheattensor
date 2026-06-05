@@ -1,4 +1,4 @@
-name: Deploy marimo app to GitHub Pages
+name: Deploy marimo apps to GitHub Pages
 
 on:
   push:
@@ -29,17 +29,113 @@ jobs:
       - name: Set up Python
         run: uv python install 3.11
 
-      - name: Export marimo app
+      - name: Export Gibbs Energy Viz app
         run: |
-          uvx marimo export html-wasm 0_Thermodynamic_Data_Tensor/8D_Parallel_Plot_Marimo.py -o _site --mode run
+          uvx marimo export html-wasm 0_Thermodynamic_Data_Tensor/GibbsEnergyViz_Marimo.py -o _site/Gibbs_EnergyViz.html --mode run
 
-      - name: Copy CSV files next to exported app
+      - name: Export MultiApp
+        run: |
+          uvx marimo export html-wasm 0_Thermodynamic_Data_Tensor/MultiAppTest.py -o _site/MultiApp.html --mode run
+
+      - name: Copy CSV files
         run: |
           cp -r 0_Thermodynamic_Data_Tensor/csv_files _site/csv_files
 
+      - name: Create landing page
+        run: |
+          cat > _site/index.html <<'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <title>MultiComponentLaserAM Apps</title>
+            <style>
+              body {
+                margin: 0;
+                min-height: 100vh;
+                font-family: Arial, Helvetica, sans-serif;
+                background: linear-gradient(135deg, #f6f8fb, #e8edf5);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #1f2937;
+              }
+
+              .container {
+                max-width: 850px;
+                width: 90%;
+                background: white;
+                border-radius: 20px;
+                padding: 48px;
+                box-shadow: 0 20px 50px rgba(0, 0, 0, 0.12);
+                text-align: center;
+              }
+
+              h1 {
+                margin-top: 0;
+                font-size: 2.2rem;
+              }
+
+              p {
+                font-size: 1.05rem;
+                color: #4b5563;
+                margin-bottom: 36px;
+              }
+
+              .buttons {
+                display: flex;
+                gap: 24px;
+                justify-content: center;
+                flex-wrap: wrap;
+              }
+
+              a.button {
+                text-decoration: none;
+                background: #111827;
+                color: white;
+                padding: 18px 30px;
+                border-radius: 12px;
+                font-size: 1.05rem;
+                font-weight: 600;
+                min-width: 210px;
+                transition: transform 0.15s ease, box-shadow 0.15s ease;
+              }
+
+              a.button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18);
+              }
+
+              .sub {
+                margin-top: 32px;
+                font-size: 0.9rem;
+                color: #6b7280;
+              }
+            </style>
+          </head>
+
+          <body>
+            <div class="container">
+              <h1>MultiComponentLaserAM Web Apps</h1>
+              <p>Select an interactive marimo app to open.</p>
+
+              <div class="buttons">
+                <a class="button" href="./Gibbs_EnergyViz.html">Gibbs_EnergyViz</a>
+                <a class="button" href="./MultiApp.html">MultiApp</a>
+              </div>
+
+              <div class="sub">
+                CoCrFeNi thermodynamic tensor visualization and analysis tools
+              </div>
+            </div>
+          </body>
+          </html>
+          EOF
+
       - name: Check exported files
         run: |
-          echo "Checking _site contents:"
+          echo "Checking _site:"
           ls -la _site
           echo "Checking CSV files:"
           ls -la _site/csv_files | head -40

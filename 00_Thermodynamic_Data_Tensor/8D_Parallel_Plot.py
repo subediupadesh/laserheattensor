@@ -423,14 +423,30 @@ st.subheader("Interactive Parallel Plot")
 # ============================================================
 # Download transparent PNG
 # ============================================================
-try:
-    png_bytes = make_transparent_png_bytes(
-        fig,
-        width=1800,
-        height=1200,
-        scale=1
-    )
+# try:
+#     png_bytes = make_transparent_png_bytes(
+#         fig,
+#         width=1800,
+#         height=1200,
+#         scale=1
+#     )
 
+#     st.download_button(
+#         label="Download 8D plot as transparent PNG",
+#         data=png_bytes,
+#         file_name="CoCrFeNi_8D_parallel_plot_transparent.png",
+#         mime="image/png",
+#         type="primary"
+#     )
+
+# except Exception:
+#     st.warning(
+#         "PNG export requires the `kaleido` package. "
+#         "Install it with: `pip install -U kaleido`"
+#     )
+
+if st.button("Prepare PNG download"):
+    png_bytes = make_transparent_png_bytes(fig, width=1800, height=1200, scale=1)
     st.download_button(
         label="Download 8D plot as transparent PNG",
         data=png_bytes,
@@ -439,20 +455,17 @@ try:
         type="primary"
     )
 
-except Exception:
-    st.warning(
-        "PNG export requires the `kaleido` package. "
-        "Install it with: `pip install -U kaleido`"
-    )
+# hovered_points = plotly_events(
+#     fig,
+#     hover_event=True,
+#     click_event=True,
+#     select_event=False,
+#     override_height=760,
+#     override_width="100%"
+# )
 
-hovered_points = plotly_events(
-    fig,
-    hover_event=True,
-    click_event=True,
-    select_event=False,
-    override_height=760,
-    override_width="100%"
-)
+st.plotly_chart(fig, width='content')
+hovered_points = []
 
 
 # ============================================================

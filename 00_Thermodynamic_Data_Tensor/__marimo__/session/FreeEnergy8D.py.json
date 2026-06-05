@@ -1,0 +1,165 @@
+{
+  "version": "1",
+  "metadata": {
+    "marimo_version": "0.18.4"
+  },
+  "cells": [
+    {
+      "id": "MJUe",
+      "code_hash": "d6302708fc367b7fe0ae56898831e618",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h1 id=\"co-cr-fe-ni-gibbs-free-energy-explorer\">Co-Cr-Fe-Ni Gibbs Free Energy Explorer</h1>\n<span class=\"paragraph\">Interactive <strong>marimo</strong> notebook for Gibbs-energy CSV files named <code>Gibbs_&lt;T&gt;K.csv</code>.</span>\n<span class=\"paragraph\">Required CSV columns: <code>Co</code>, <code>Cr</code>, <code>Fe</code>, <code>Ni</code>, <code>G_LIQ</code>, <code>G_FCC</code>.</span>\n<span class=\"paragraph\">Stable phase condition:</span>\n<marimo-tex class=\"arithmatex\">||[G_{stable} = \\min(G_{LIQ}, G_{FCC})||]</marimo-tex></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "qnkX",
+      "code_hash": "ee8f1b9c8586cf20ed18744c7d778ae8",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"github-codespaces-run-commands\">GitHub / Codespaces run commands</h2>\n<div class=\"language-bash codehilite\"><pre><span></span><code>pip<span class=\"w\"> </span>install<span class=\"w\"> </span>-r<span class=\"w\"> </span>requirements.txt\nmarimo<span class=\"w\"> </span>edit<span class=\"w\"> </span>gibbs_energy_explorer_marimo.py<span class=\"w\"> </span>--host<span class=\"w\"> </span><span class=\"m\">0</span>.0.0.0<span class=\"w\"> </span>--port<span class=\"w\"> </span><span class=\"m\">8080</span>\n</code></pre></div>\n<span class=\"paragraph\">Put your CSV files inside a repository folder named <code>csv_files/</code>, or use the upload area above.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Hbol",
+      "code_hash": "8dc8e076411c94b7b2b5d03b9d8b4dc5",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "vblA",
+      "code_hash": "76ce163f6b03485b6d9958de5ab28a57",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<div style='display: flex;flex: 1;flex-direction: column;justify-content: flex-start;align-items: normal;flex-wrap: nowrap;gap: 0.5rem'><span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"data-settings\">Data settings</h2></span><marimo-ui-element object-id='vblA-0' random-id='80b26b74-b2c6-210e-33de-096ec0c2e57f'><marimo-radio data-initial-value='&quot;Read from repository folder&quot;' data-label='&quot;&lt;span class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&gt;&lt;span class=&#92;&quot;paragraph&#92;&quot;&gt;Data loading mode&lt;/span&gt;&lt;/span&gt;&quot;' data-options='[&quot;Read from repository folder&quot;,&quot;Upload CSV files&quot;]' data-inline='false' data-disabled='false'></marimo-radio></marimo-ui-element><marimo-ui-element object-id='vblA-1' random-id='b8888515-d21d-9adf-bfde-7a019e9017ea'><marimo-text data-initial-value='&quot;csv_files&quot;' data-label='&quot;&lt;span class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&gt;&lt;span class=&#92;&quot;paragraph&#92;&quot;&gt;CSV folder in repository&lt;/span&gt;&lt;/span&gt;&quot;' data-placeholder='&quot;&quot;' data-kind='&quot;text&quot;' data-full-width='false' data-disabled='false' data-debounce='true'></marimo-text></marimo-ui-element><marimo-ui-element object-id='vblA-2' random-id='beb004a6-4798-8126-55be-c2d93b01c3b7'><marimo-file data-initial-value='[]' data-label='&quot;&lt;span class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&gt;&lt;span class=&#92;&quot;paragraph&#92;&quot;&gt;Upload Gibbs_&lt;T&gt;K.csv files&lt;/span&gt;&lt;/span&gt;&quot;' data-filetypes='[&quot;.csv&quot;]' data-multiple='true' data-kind='&quot;area&quot;' data-max_size='100000000'></marimo-file></marimo-ui-element><div style='display: flex;flex: 1;flex-direction: row;justify-content: space-between;align-items: normal;flex-wrap: nowrap;gap: 0.5rem'><marimo-ui-element object-id='vblA-3' random-id='db27e116-e2c8-1552-1b15-52182053faae'><marimo-number data-initial-value='300' data-label='&quot;&lt;span class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&gt;&lt;span class=&#92;&quot;paragraph&#92;&quot;&gt;Minimum T [K]&lt;/span&gt;&lt;/span&gt;&quot;' data-start='0' data-stop='10000' data-step='100' data-debounce='false' data-full-width='false' data-disabled='false'></marimo-number></marimo-ui-element><marimo-ui-element object-id='vblA-4' random-id='59a0fbbe-37a3-3abe-d37b-549935833d15'><marimo-number data-initial-value='3300' data-label='&quot;&lt;span class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&gt;&lt;span class=&#92;&quot;paragraph&#92;&quot;&gt;Maximum T [K]&lt;/span&gt;&lt;/span&gt;&quot;' data-start='0' data-stop='10000' data-step='100' data-debounce='false' data-full-width='false' data-disabled='false'></marimo-number></marimo-ui-element><marimo-ui-element object-id='vblA-5' random-id='c14a1c57-0494-b1ac-0a5f-a2aed5d53e6f'><marimo-number data-initial-value='100' data-label='&quot;&lt;span class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&gt;&lt;span class=&#92;&quot;paragraph&#92;&quot;&gt;Temperature step [K]&lt;/span&gt;&lt;/span&gt;&quot;' data-start='1' data-stop='10000' data-step='100' data-debounce='false' data-full-width='false' data-disabled='false'></marimo-number></marimo-ui-element></div><div style='display: flex;flex: 1;flex-direction: row;justify-content: space-between;align-items: normal;flex-wrap: nowrap;gap: 0.5rem'><marimo-ui-element object-id='vblA-6' random-id='9b7ba382-3b5e-6502-84e7-c89781742e49'><marimo-slider data-initial-value='300' data-label='&quot;&lt;span class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&gt;&lt;span class=&#92;&quot;paragraph&#92;&quot;&gt;Max rows in parallel plot&lt;/span&gt;&lt;/span&gt;&quot;' data-start='50' data-stop='3000' data-step='50' data-steps='[]' data-debounce='false' data-disabled='false' data-orientation='&quot;horizontal&quot;' data-show-value='false' data-include-input='false' data-full-width='false'></marimo-slider></marimo-ui-element><marimo-ui-element object-id='vblA-7' random-id='d0078547-c233-12e0-6e5d-b6ceca9b6be7'><marimo-number data-initial-value='42' data-label='&quot;&lt;span class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&gt;&lt;span class=&#92;&quot;paragraph&#92;&quot;&gt;Random seed&lt;/span&gt;&lt;/span&gt;&quot;' data-start='0' data-stop='999999' data-step='1' data-debounce='false' data-full-width='false' data-disabled='false'></marimo-number></marimo-ui-element></div></div>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "bkHC",
+      "code_hash": "0422136b86d1efcfbb8df364666dfe40",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "lEQa",
+      "code_hash": "9ba65accc22cb4e645eb4058821c2da6",
+      "outputs": [
+        {
+          "type": "error",
+          "ename": "exception",
+          "evalue": "name '_finalize_frames' is not defined",
+          "traceback": []
+        }
+      ],
+      "console": [
+        {
+          "type": "stream",
+          "name": "stderr",
+          "text": "<span class=\"codehilite\"><div class=\"highlight\"><pre><span></span><span class=\"gt\">Traceback (most recent call last):</span>\n  File <span class=\"nb\">&quot;/tmp/marimo_221177/__marimo__cell_lEQa_.py&quot;</span>, line <span class=\"m\">4</span>, in <span class=\"n\">&lt;module&gt;</span>\n<span class=\"w\">    </span><span class=\"n\">gibbs_df</span><span class=\"p\">,</span> <span class=\"n\">load_messages</span> <span class=\"o\">=</span> <span class=\"n\">load_gibbs_data_from_folder</span><span class=\"p\">(</span><span class=\"n\">csv_folder</span><span class=\"o\">.</span><span class=\"n\">value</span><span class=\"p\">,</span> <span class=\"nb\">int</span><span class=\"p\">(</span><span class=\"n\">T_min</span><span class=\"o\">.</span><span class=\"n\">value</span><span class=\"p\">),</span> <span class=\"nb\">int</span><span class=\"p\">(</span><span class=\"n\">T_max</span><span class=\"o\">.</span><span class=\"n\">value</span><span class=\"p\">),</span> <span class=\"nb\">int</span><span class=\"p\">(</span><span class=\"n\">T_step</span><span class=\"o\">.</span><span class=\"n\">value</span><span class=\"p\">))</span>\n<span class=\"w\">                              </span><span class=\"pm\">^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</span>\n  File <span class=\"nb\">&quot;/tmp/marimo_221177/__marimo__cell_bkHC_.py&quot;</span>, line <span class=\"m\">35</span>, in <span class=\"n\">load_gibbs_data_from_folder</span>\n<span class=\"w\">    </span><span class=\"k\">return</span> <span class=\"n\">_finalize_frames</span><span class=\"p\">(</span><span class=\"n\">frames</span><span class=\"p\">),</span> <span class=\"n\">messages</span>\n<span class=\"w\">           </span><span class=\"pm\">^^^^^^^^^^^^^^^^</span>\n<span class=\"gr\">NameError</span>: <span class=\"n\">name &#39;_finalize_frames&#39; is not defined</span>\n</pre></div>\n</span>",
+          "mimetype": "application/vnd.marimo+traceback"
+        }
+      ]
+    },
+    {
+      "id": "PKri",
+      "code_hash": "d0e8c31b8948b62d1e72e35bcdccdea5",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "Xref",
+      "code_hash": "8fa1deae91a2f3d368469ef89d191f2c",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "SFPL",
+      "code_hash": "deb3240fbd015cb51430ca412e229ab3",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "BYtC",
+      "code_hash": "aa759df1d343411db01e1e2cdc92cdae",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "RGSE",
+      "code_hash": "1a1bc626d009f07ccbe6f67aab4d222c",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "Kclp",
+      "code_hash": "a31b6f75c230f91932051fc24a431725",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "emfo",
+      "code_hash": "7136e333192cff006bf6c4f23c4f2c2b",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "Hstk",
+      "code_hash": "e938f4921331a11bb6ff3b8b6769c74c",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "nWHF",
+      "code_hash": "03ff385a4e244f167bd5e404e31a03b3",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "iLit",
+      "code_hash": "0bcd2b8d491dea15364b28324489e5f3",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "ZHCJ",
+      "code_hash": "c1877acb6cf92ed2579b7ef2c0a8cb03",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "ROlb",
+      "code_hash": "2e9b96403cae9cd7cbf8519d01706a50",
+      "outputs": [],
+      "console": []
+    }
+  ]
+}

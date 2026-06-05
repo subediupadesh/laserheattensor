@@ -11,7 +11,7 @@
 import marimo
 
 __generated_with = "0.23.0"
-app = marimo.App(width="full", app_title="Interactive test 8D Gibbs Parallel Plot")
+app = marimo.App(width="full", app_title="Interactive 8D Gibbs Parallel Plot")
 
 
 @app.cell(hide_code=True)
@@ -30,7 +30,7 @@ def _():
 def _(mo):
     mo.md(
         """
-        # Interactive 8D Parallel Plot for CoCrFeNi Gibbs Free Energy
+        # TEST Interactive 8D Parallel Plot for CoCrFeNi Gibbs Free Energy
 
         This marimo app loads `Gibbs_<T>K.csv` files from the deployed GitHub Pages
         CSV folder and creates an interactive 8D parallel-coordinate visualization

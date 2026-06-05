@@ -31,7 +31,7 @@ jobs:
 
       - name: Export marimo app
         run: |
-          uvx marimo export html-wasm 0_Thermodynamic_Data_Tensor/GibbsEnergyViz_Marimo.py -o _site --mode run
+          uvx marimo export html-wasm 0_Thermodynamic_Data_Tensor/8D_Parallel_Plot_Marimo.py -o _site --mode run
 
       - name: Copy CSV files next to exported app
         run: |

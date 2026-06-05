@@ -50,13 +50,43 @@ jobs:
           mkdir -p _site/MLDATA
           cp -r 3_ML_Model/MLDATA/* _site/MLDATA/
 
-      - name: Check exported thermodynamic CSV files
+      - name: Create MLDATA manifest
         run: |
+          python - <<'PY'
+          import json
+          import os
+
+          root = "_site/MLDATA"
+          fields = ["TEMP", "ETALIQ", "VEL", "COMP", "SIM_TIME"]
+
+          manifest = {}
+          for field in fields:
+              folder = os.path.join(root, field)
+              if os.path.isdir(folder):
+                  manifest[field] = sorted(
+                      f for f in os.listdir(folder)
+                      if f.lower().endswith(".npy")
+                  )
+              else:
+                  manifest[field] = []
+
+          with open(os.path.join(root, "manifest.json"), "w", encoding="utf-8") as f:
+              json.dump(manifest, f, indent=2)
+
+          print(json.dumps(manifest, indent=2))
+          PY
+
+      - name: Check exported data files
+        run: |
+          echo "Checking _site:"
+          ls -la _site
+
           echo "Checking CSV files:"
           find _site/csv_files -maxdepth 1 -type f | sort | head -40
 
-      - name: Check exported ML data files
-        run: |
+          echo "Checking MLDATA manifest:"
+          cat _site/MLDATA/manifest.json
+
           echo "Checking TEMP files:"
           find _site/MLDATA/TEMP -maxdepth 1 -type f | sort | head -40
 
@@ -149,7 +179,7 @@ jobs:
               <p>Select an interactive marimo app to open.</p>
 
               <div class="buttons">
-                <a class="button" href="./8D_ParallelPlot.html">8D_ParallelPlot</a>
+                <a class="button" href="./8D_ParallelPlot.html">Gibbs_EnergyViz</a>
                 <a class="button" href="./MultiApp.html">MultiApp</a>
                 <a class="button" href="./ML_Predictions.html">ML Predictions</a>
               </div>

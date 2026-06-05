@@ -20,6 +20,7 @@ def _():
     import os
     import re
     import io
+    import json
     from typing import Dict, List, Optional, Tuple
 
     import marimo as mo
@@ -30,14 +31,27 @@ def _():
     import matplotlib.pyplot as plt
     from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+    MLDATA_URL = "https://subediupadesh.github.io/MultiComponentLaserAM/MLDATA"
+
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-    MLDATA_DIR = os.path.join(SCRIPT_DIR, "MLDATA")
-    DEFAULT_DIRS = {
-        "TEMP": os.path.join(MLDATA_DIR, "TEMP"),
-        "COMP": os.path.join(MLDATA_DIR, "COMP"),
-        "ETALIQ": os.path.join(MLDATA_DIR, "ETALIQ"),
-        "VEL": os.path.join(MLDATA_DIR, "VEL"),
-    }
+    LOCAL_MLDATA_DIR = os.path.join(SCRIPT_DIR, "MLDATA")
+
+    if os.path.isdir(LOCAL_MLDATA_DIR):
+        MLDATA_DIR = LOCAL_MLDATA_DIR
+        DEFAULT_DIRS = {
+            "TEMP": os.path.join(LOCAL_MLDATA_DIR, "TEMP"),
+            "COMP": os.path.join(LOCAL_MLDATA_DIR, "COMP"),
+            "ETALIQ": os.path.join(LOCAL_MLDATA_DIR, "ETALIQ"),
+            "VEL": os.path.join(LOCAL_MLDATA_DIR, "VEL"),
+        }
+    else:
+        MLDATA_DIR = MLDATA_URL
+        DEFAULT_DIRS = {
+            "TEMP": f"{MLDATA_URL}/TEMP",
+            "COMP": f"{MLDATA_URL}/COMP",
+            "ETALIQ": f"{MLDATA_URL}/ETALIQ",
+            "VEL": f"{MLDATA_URL}/VEL",
+        }
 
     ELEMENTS = ["Co", "Cr", "Fe", "Ni"]
     FALLBACK_CTF_TABLE: Dict[int, Dict[str, List[float]]] = {
@@ -67,6 +81,7 @@ def _():
         Tuple,
         go,
         io,
+        json,
         make_axes_locatable,
         mpl,
         mo,
@@ -79,7 +94,7 @@ def _():
 
 
 @app.cell
-def _(ELEMENTS, FALLBACK_CTF_TABLE, SCRIPT_DIR, np, os, pd, re):
+def _(ELEMENTS, FALLBACK_CTF_TABLE, SCRIPT_DIR, io, json, np, os, pd, re):
     def load_ctf_table_from_csv():
         csv_path = os.path.join(SCRIPT_DIR, "nomenclature_phase_composition_thermodynamic_factor_tensor_components.csv")
         if not os.path.exists(csv_path):
@@ -145,22 +160,85 @@ def _(ELEMENTS, FALLBACK_CTF_TABLE, SCRIPT_DIR, np, os, pd, re):
                 return arr[:, component_index, :, :].astype(np.float64)
         raise ValueError(f"Expected 3D scalar field or supported 4D component/vector field, got shape {arr.shape}.")
 
-    def load_sources_from_folder(folder_path: str, field_key: str):
+    async def load_sources_from_folder(folder_path: str, field_key: str):
         sources, arrays, warnings = [], [], []
+        folder_path = str(folder_path).rstrip("/")
+        is_web_path = folder_path.startswith("http://") or folder_path.startswith("https://")
+
+        if is_web_path:
+            try:
+                from pyodide.http import open_url, pyfetch
+            except ImportError as exc:
+                return sources, arrays, [f"Web loading is only available in the browser/WASM export: {exc}"], 0
+
+            base_mldata_url = folder_path.rsplit("/", 1)[0]
+            manifest_url = f"{base_mldata_url}/manifest.json"
+
+            try:
+                manifest = json.loads(open_url(manifest_url).read())
+                files = sorted(manifest.get(field_key, []))
+            except Exception as exc:
+                return sources, arrays, [f"Could not read manifest: {manifest_url}; {exc}"], 0
+
+            for filename in files:
+                parsed = parse_tensor_filename(filename)
+                if parsed is None:
+                    warnings.append(f"Skipped {filename}: filename must be p<P>s<v>cTF<idx>.npy")
+                    continue
+
+                file_url = f"{folder_path}/{filename}"
+
+                try:
+                    response = await pyfetch(file_url)
+
+                    if not response.ok:
+                        warnings.append(f"Skipped {filename}: HTTP {response.status} from {file_url}")
+                        continue
+
+                    data = await response.bytes()
+                    arr = np.load(io.BytesIO(data), allow_pickle=False)
+                    arr = standardize_field_array(arr, field_key)
+
+                    if arr.ndim not in (3, 4):
+                        warnings.append(f"Skipped {filename}: expected 3D/4D array, got {arr.shape}")
+                        continue
+
+                    sources.append({
+                        "file_name": filename,
+                        "P": parsed["P"],
+                        "v": parsed["v"],
+                        "v_cm_s": parsed["v_cm_s"],
+                        "TF_idx": parsed["TF_idx"],
+                        "composition_liquid": parsed["composition_liquid"],
+                        "composition_fcc": parsed["composition_fcc"],
+                        "shape": arr.shape,
+                    })
+                    arrays.append(arr)
+
+                except Exception as exc:
+                    warnings.append(f"Skipped {filename}: {exc}")
+
+            return sources, arrays, warnings, len(files)
+
         if not os.path.isdir(folder_path):
             return sources, arrays, [f"Folder not found: {folder_path}"], 0
+
         files = sorted([f for f in os.listdir(folder_path) if f.lower().endswith(".npy")])
+
         for filename in files:
             parsed = parse_tensor_filename(filename)
             if parsed is None:
                 warnings.append(f"Skipped {filename}: filename must be p<P>s<v>cTF<idx>.npy")
                 continue
+
             try:
-                arr = np.load(os.path.join(folder_path, filename))
+                arr = np.load(os.path.join(folder_path, filename), allow_pickle=False)
                 arr = standardize_field_array(arr, field_key)
+
                 if arr.ndim not in (3, 4):
                     warnings.append(f"Skipped {filename}: expected 3D/4D array, got {arr.shape}")
                     continue
+
                 sources.append({
                     "file_name": filename,
                     "P": parsed["P"],
@@ -172,8 +250,10 @@ def _(ELEMENTS, FALLBACK_CTF_TABLE, SCRIPT_DIR, np, os, pd, re):
                     "shape": arr.shape,
                 })
                 arrays.append(arr)
+
             except Exception as exc:
                 warnings.append(f"Skipped {filename}: {exc}")
+
         return sources, arrays, warnings, len(files)
 
     def sources_dataframe(sources):
@@ -473,8 +553,8 @@ def _(
     sigma_param,
     use_composition,
 ):
-    def compute_prediction(field_key: str, folder_path: str, component_index: int = 0):
-        sources, arrays_raw, warnings, file_count = load_sources_from_folder(folder_path, field_key)
+    async def compute_prediction(field_key: str, folder_path: str, component_index: int = 0):
+        sources, arrays_raw, warnings, file_count = await load_sources_from_folder(folder_path, field_key)
         if len(sources) < 2:
             return {
                 "ok": False,
@@ -542,7 +622,7 @@ def _(component_choice, field_select, folder_comp, folder_eta, folder_temp, fold
 
 
 @app.cell
-def _(
+async def _(
     compute_prediction,
     component_index,
     field_key,
@@ -559,12 +639,12 @@ def _(
     if run_button.value and target_valid:
         if field_key == "COMBO":
             combo_result = {
-                "TEMP": compute_prediction("TEMP", folder_temp.value, 0),
-                "ETALIQ": compute_prediction("ETALIQ", folder_eta.value, 0),
-                "VEL": compute_prediction("VEL", folder_vel.value, 0),
+                "TEMP": await compute_prediction("TEMP", folder_temp.value, 0),
+                "ETALIQ": await compute_prediction("ETALIQ", folder_eta.value, 0),
+                "VEL": await compute_prediction("VEL", folder_vel.value, 0),
             }
         else:
-            prediction_result = compute_prediction(field_key, folder_by_field[field_key], component_index)
+            prediction_result = await compute_prediction(field_key, folder_by_field[field_key], component_index)
     return combo_result, prediction_result
 
 
@@ -931,7 +1011,7 @@ def _(mo):
             marimo run Ablation_Calc_Marimo.py
             ```
 
-            Keep this file beside the `MLDATA/` folder. The expected structure is:
+            For local use, keep this file beside the `MLDATA/` folder. For GitHub Pages, the app automatically uses the deployed `MLDATA/manifest.json` and `.npy` URLs. The expected local structure is:
 
             ```text
             Ablation_Calc_Marimo.py

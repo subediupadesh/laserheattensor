@@ -94,26 +94,51 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(np, os, pd):
+
     def load_gibbs_data(csv_folder_value, T_min_value, T_max_value, T_step_value):
         temperatures = list(range(int(T_min_value), int(T_max_value) + 1, int(T_step_value)))
         df_list = []
         missing_files = []
 
-        for T in temperatures:
-            file_path = os.path.join(str(csv_folder_value), f"Gibbs_{T}K.csv")
-            if not os.path.exists(file_path):
-                missing_files.append(file_path)
-                continue
+        try:
+            from pyodide.http import open_url
+            running_in_wasm = True
+        except ImportError:
+            running_in_wasm = False
 
-            try:
-                df_T = pd.read_csv(file_path)
-            except Exception as exc:
-                missing_files.append(f"{file_path}  [read error: {exc}]")
-                continue
+        csv_folder_value = str(csv_folder_value).rstrip("/")
+
+        for T in temperatures:
+            filename = f"Gibbs_{T}K.csv"
+
+            if running_in_wasm:
+                file_path = f"{csv_folder_value}/{filename}"
+
+                try:
+                    csv_text = open_url(file_path).read()
+                    df_T = pd.read_csv(io.StringIO(csv_text))
+                except Exception as exc:
+                    missing_files.append(f"{file_path} [browser read error: {exc}]")
+                    continue
+
+            else:
+                file_path = os.path.join(csv_folder_value, filename)
+
+                if not os.path.exists(file_path):
+                    missing_files.append(file_path)
+                    continue
+
+                try:
+                    df_T = pd.read_csv(file_path)
+                except Exception as exc:
+                    missing_files.append(f"{file_path} [local read error: {exc}]")
+                    continue
 
             df_T["T"] = T
+
             if "G_FCC" in df_T.columns and "G_LIQ" in df_T.columns:
                 df_T["DeltaG"] = df_T["G_FCC"] - df_T["G_LIQ"]
+
             df_list.append(df_T)
 
         if len(df_list) == 0:
@@ -121,6 +146,34 @@ def _(np, os, pd):
 
         df_plot = pd.concat(df_list, ignore_index=True)
         return df_plot, missing_files
+
+    # def load_gibbs_data(csv_folder_value, T_min_value, T_max_value, T_step_value):
+    #     temperatures = list(range(int(T_min_value), int(T_max_value) + 1, int(T_step_value)))
+    #     df_list = []
+    #     missing_files = []
+
+    #     for T in temperatures:
+    #         file_path = os.path.join(str(csv_folder_value), f"Gibbs_{T}K.csv")
+    #         if not os.path.exists(file_path):
+    #             missing_files.append(file_path)
+    #             continue
+
+    #         try:
+    #             df_T = pd.read_csv(file_path)
+    #         except Exception as exc:
+    #             missing_files.append(f"{file_path}  [read error: {exc}]")
+    #             continue
+
+    #         df_T["T"] = T
+    #         if "G_FCC" in df_T.columns and "G_LIQ" in df_T.columns:
+    #             df_T["DeltaG"] = df_T["G_FCC"] - df_T["G_LIQ"]
+    #         df_list.append(df_T)
+
+    #     if len(df_list) == 0:
+    #         return None, missing_files
+
+    #     df_plot = pd.concat(df_list, ignore_index=True)
+    #     return df_plot, missing_files
 
 
     def make_transparent_png_bytes(fig, width=1800, height=1200, scale=1):

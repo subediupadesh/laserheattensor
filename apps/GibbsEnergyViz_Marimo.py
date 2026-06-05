@@ -5,7 +5,6 @@
 #   "numpy>=1.24",
 #   "pandas>=2.0",
 #   "plotly>=5.20",
-#   "kaleido>=0.2.1",
 # ]
 # ///
 
@@ -412,11 +411,21 @@ def _(
             )
         )
 
+    # fig.update_layout(
+    #     height=760,
+    #     margin=dict(l=40, r=80, t=80, b=80),
+    #     plot_bgcolor="white",
+    #     paper_bgcolor="white",
+    #     hovermode="closest",
+    #     dragmode="select",
+    #     xaxis=dict(range=[-0.7, 10.6], showgrid=False, zeroline=False, showticklabels=False),
+    #     yaxis=dict(range=[-0.08, 1.15], showgrid=False, zeroline=False, showticklabels=False),
+    # )
     fig.update_layout(
         height=760,
         margin=dict(l=40, r=80, t=80, b=80),
-        plot_bgcolor="white",
-        paper_bgcolor="white",
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
         hovermode="closest",
         dragmode="select",
         xaxis=dict(range=[-0.7, 10.6], showgrid=False, zeroline=False, showticklabels=False),
@@ -450,7 +459,7 @@ def _(fig, mo):
             "responsive": True,
             "toImageButtonOptions": {
                 "format": "png",
-                "filename": "CoCrFeNi_8D_parallel_plot",
+                "filename": "CoCrFeNi_8D_parallel_plot_transparent",
                 "height": 1200,
                 "width": 1800,
                 "scale": 1,
@@ -460,23 +469,30 @@ def _(fig, mo):
     return interactive_plot,
 
 
-@app.cell(hide_code=True)
-def _(fig, make_transparent_png_bytes, mo):
-    try:
-        png_bytes = make_transparent_png_bytes(fig, width=1800, height=1200, scale=1)
-        png_download = mo.download(
-            data=png_bytes,
-            filename="CoCrFeNi_8D_parallel_plot_transparent.png",
-            mimetype="image/png",
-            label="Download 8D plot as transparent PNG",
-        )
-    except Exception:
-        png_download = mo.callout(
-            "PNG export requires a compatible `kaleido` installation. The interactive Plotly toolbar can still export a normal PNG.",
-            kind="warn",
-        )
-    return png_download,
+# @app.cell(hide_code=True)
+# def _(fig, make_transparent_png_bytes, mo):
+#     try:
+#         png_bytes = make_transparent_png_bytes(fig, width=1800, height=1200, scale=1)
+#         png_download = mo.download(
+#             data=png_bytes,
+#             filename="CoCrFeNi_8D_parallel_plot_transparent.png",
+#             mimetype="image/png",
+#             label="Download 8D plot as transparent PNG",
+#         )
+#     except Exception:
+#         png_download = mo.callout(
+#             "PNG export requires a compatible `kaleido` installation. The interactive Plotly toolbar can still export a normal PNG.",
+#             kind="warn",
+#         )
+#     return png_download,
 
+@app.cell(hide_code=True)
+def _(mo):
+    png_download = mo.callout(
+        "Transparent PNG export is disabled in the GitHub Pages/WASM version. Use the Plotly toolbar camera button to export the figure.",
+        kind="info",
+    )
+    return png_download,
 
 @app.cell(hide_code=True)
 def _(df_parallel, interactive_plot, manual_line_id, mo, pd, variables):

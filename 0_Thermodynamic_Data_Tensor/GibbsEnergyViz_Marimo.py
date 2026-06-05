@@ -32,8 +32,8 @@ def _(mo):
         """
         # Interactive 8D Parallel Plot for CoCrFeNi Gibbs Free Energy
 
-        This marimo app loads `Gibbs_<T>K.csv` files from the local `csv_files/`
-        folder and creates an interactive 8D parallel-coordinate visualization
+        This marimo app loads `Gibbs_<T>K.csv` files from the deployed GitHub Pages
+        CSV folder and creates an interactive 8D parallel-coordinate visualization
         for Co, Cr, Fe, Ni, temperature, `G_LIQ`, `G_FCC`, and `DeltaG`.
         """
     )
@@ -43,7 +43,7 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     csv_folder = mo.ui.text(
-        value="csv_files/",
+        value="https://subediupadesh.github.io/MultiComponentLaserAM/csv_files/",
         label="CSV folder",
     )
 
@@ -123,29 +123,20 @@ def _(io, os, pd):
         df_list = []
         missing_files = []
 
+        csv_folder_value = str(csv_folder_value).strip().rstrip("/")
+
         try:
             from pyodide.http import open_url
-            from js import window
             running_in_wasm = True
         except ImportError:
             open_url = None
-            window = None
             running_in_wasm = False
-
-        csv_folder_value = str(csv_folder_value).strip().strip("/")
 
         for T in temperatures:
             filename = f"Gibbs_{T}K.csv"
 
             if running_in_wasm:
-                page_url = str(window.location.href).split("?")[0].split("#")[0]
-
-                if page_url.endswith("/"):
-                    base_url = page_url
-                else:
-                    base_url = page_url.rsplit("/", 1)[0] + "/"
-
-                file_path = f"{base_url}{csv_folder_value}/{filename}"
+                file_path = f"{csv_folder_value}/{filename}"
 
                 try:
                     csv_text = open_url(file_path).read()
@@ -155,16 +146,15 @@ def _(io, os, pd):
                     continue
 
             else:
-                file_path = os.path.join(csv_folder_value, filename)
-
-                if not os.path.exists(file_path):
-                    missing_files.append(file_path)
-                    continue
+                if csv_folder_value.startswith("http://") or csv_folder_value.startswith("https://"):
+                    file_path = f"{csv_folder_value}/{filename}"
+                else:
+                    file_path = os.path.join(csv_folder_value, filename)
 
                 try:
                     df_T = pd.read_csv(file_path)
                 except Exception as exc:
-                    missing_files.append(f"{file_path} [local read error: {exc}]")
+                    missing_files.append(f"{file_path} [local/web read error: {exc}]")
                     continue
 
             df_T["T"] = T

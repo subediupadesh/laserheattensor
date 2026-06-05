@@ -37,17 +37,9 @@ jobs:
         run: |
           uvx marimo export html-wasm 0_Thermodynamic_Data_Tensor/MultiAppTest.py -o _site/MultiApp.html --mode run
 
-      - name: Export ML Predictions app
-        run: |
-          uvx marimo export html-wasm 3_ML_Model/Ablation_Calc_Marimo.py -o _site/ML_Predictions.html --mode run
-
-      - name: Copy thermodynamic CSV files
+      - name: Copy CSV files
         run: |
           cp -r 0_Thermodynamic_Data_Tensor/csv_files _site/csv_files
-
-      - name: Copy ML data files
-        run: |
-          cp -r 3_ML_Model/MLDATA _site/MLDATA
 
       - name: Create landing page
         run: |
@@ -71,7 +63,7 @@ jobs:
               }
 
               .container {
-                max-width: 950px;
+                max-width: 850px;
                 width: 90%;
                 background: white;
                 border-radius: 20px;
@@ -106,7 +98,7 @@ jobs:
                 border-radius: 12px;
                 font-size: 1.05rem;
                 font-weight: 600;
-                min-width: 220px;
+                min-width: 210px;
                 transition: transform 0.15s ease, box-shadow 0.15s ease;
               }
 
@@ -131,11 +123,10 @@ jobs:
               <div class="buttons">
                 <a class="button" href="./8D_ParallelPlot.html">8D_ParallelPlot</a>
                 <a class="button" href="./MultiApp.html">MultiApp</a>
-                <a class="button" href="./ML_Predictions.html">ML Predictions</a>
               </div>
 
               <div class="sub">
-                CoCrFeNi thermodynamic tensor visualization and ML prediction tools
+                CoCrFeNi thermodynamic tensor visualization and analysis tools
               </div>
             </div>
           </body>
@@ -148,8 +139,6 @@ jobs:
           ls -la _site
           echo "Checking CSV files:"
           ls -la _site/csv_files | head -40
-          echo "Checking MLDATA files:"
-          find _site/MLDATA -maxdepth 2 -type f | head -40
 
       - name: Disable Jekyll
         run: touch _site/.nojekyll

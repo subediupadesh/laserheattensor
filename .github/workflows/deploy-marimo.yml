@@ -31,17 +31,18 @@ jobs:
 
       - name: Export marimo app
         run: |
-          uvx marimo export html-wasm apps/GibbsEnergyViz_Marimo.py -o _site --mode run
+          uvx marimo export html-wasm 0_Thermodynamic_Data_Tensor/GibbsEnergyViz_Marimo.py -o _site --mode run
 
-      - name: Copy CSV files into deployed site
+      - name: Copy CSV files next to exported app
         run: |
-          mkdir -p _site/0_Thermodynamic_Data_Tensor
-          cp -r 0_Thermodynamic_Data_Tensor/csv_files _site/0_Thermodynamic_Data_Tensor/csv_files
+          cp -r 0_Thermodynamic_Data_Tensor/csv_files _site/csv_files
 
       - name: Check exported files
         run: |
           echo "Checking _site contents:"
-          ls -R _site/0_Thermodynamic_Data_Tensor/csv_files | head -40
+          ls -la _site
+          echo "Checking CSV files:"
+          ls -la _site/csv_files | head -40
 
       - name: Disable Jekyll
         run: touch _site/.nojekyll

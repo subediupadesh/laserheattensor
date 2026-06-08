@@ -107,7 +107,7 @@ jobs:
           <head>
             <meta charset="UTF-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-            <title>MultiComponentLaserAM Apps</title>
+            <title>laserheattensor Apps</title>
             <style>
               body {
                 margin: 0;
@@ -175,7 +175,7 @@ jobs:
 
           <body>
             <div class="container">
-              <h1>MultiComponentLaserAM Web Apps</h1>
+              <h1>LaserHEATTENsor Web Apps</h1>
               <p>Select an interactive marimo app to open.</p>
 
               <div class="buttons">

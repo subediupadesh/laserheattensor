@@ -43,7 +43,7 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     csv_folder = mo.ui.text(
-        value="https://subediupadesh.github.io/MultiComponentLaserAM/csv_files/",
+        value="https://subediupadesh.github.io/laserheattensor/csv_files/",
         label="CSV folder",
     )
 

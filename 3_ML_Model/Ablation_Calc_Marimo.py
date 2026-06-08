@@ -31,7 +31,7 @@ def _():
     import matplotlib.pyplot as plt
     from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-    MLDATA_URL = "https://subediupadesh.github.io/MultiComponentLaserAM/MLDATA"
+    MLDATA_URL = "https://subediupadesh.github.io/laserheattensor/MLDATA"
 
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     LOCAL_MLDATA_DIR = os.path.join(SCRIPT_DIR, "MLDATA")

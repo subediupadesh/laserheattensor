@@ -1034,7 +1034,7 @@ with tab4:
 
 
 with tab5:
-    st.markdown("### 🌞 Multi-Ring Thermodynamic Explorer")
+    st.markdown("### 🌞 Multi-Ring Mechanical Force-Thermodynamic State Space Chart")
     st.info(
         "Inner ring = Temperature, middle ring = Composition (Co/Cr/Fe/Ni stacked to sum to 1), "
         "outer ring = Differential Force dF_net. Temperature is ordered sequentially from low to high. "

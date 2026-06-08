@@ -30,10 +30,10 @@ def _():
 def _(mo):
     mo.md(
         """
-        # Interactive 8D Parallel Plot for CoCrFeNi Gibbs Free Energy
+        # 8D TDT Viz: CoCrFeNi HEA 
 
         This marimo app loads `Gibbs_<T>K.csv` files from the deployed GitHub Pages
-        CSV folder and creates an interactive 8D parallel-coordinate visualization
+        CSV folder and creates an interactive 8D Thermodynamic Data Tensor Visualization
         for Co, Cr, Fe, Ni, temperature, `G_LIQ`, `G_FCC`, and `DeltaG`.
         """
     )

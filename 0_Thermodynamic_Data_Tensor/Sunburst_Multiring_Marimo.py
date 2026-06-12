@@ -1,3 +1,12 @@
+# /// script
+# dependencies = [
+#   "marimo>=0.13.0",
+#   "numpy",
+#   "pandas",
+#   "plotly",
+# ]
+# ///
+
 """
 Marimo app for the CoCrFeNi temperature-composition-force multi-ring chart.
 
@@ -26,15 +35,31 @@ app = marimo.App(width="full")
 @app.cell
 def _():
     import glob
+    import json
     import os
+    import sys
+    from io import StringIO
     from pathlib import Path
 
     import marimo as mo
     import numpy as np
     import pandas as pd
+
+    return Path, StringIO, glob, json, mo, np, os, pd, sys
+
+
+@app.cell
+async def _(sys):
+    # GitHub Pages runs the app in Pyodide/WebAssembly. Plotly is not
+    # always preinstalled there, so install it in-browser before importing.
+    if sys.platform == "emscripten":
+        import micropip
+
+        await micropip.install("plotly")
+
     import plotly.graph_objects as go
 
-    return Path, glob, go, mo, np, os, pd
+    return (go,)
 
 
 @app.cell
@@ -51,17 +76,50 @@ def _(mo):
 
 
 @app.cell
-def _(Path, glob, os, pd, np):
+def _(Path, StringIO, glob, json, mo, np, pd, sys):
     try:
         SCRIPT_DIR = Path(__file__).resolve().parent
     except NameError:
         SCRIPT_DIR = Path.cwd()
 
-    CSV_FILES_DIR = SCRIPT_DIR / "csv_files"
     REQUIRED_COLUMNS = ["Co", "Cr", "Fe", "Ni", "G_LIQ", "G_FCC"]
 
-    def load_temperature_data(csv_dir: Path):
-        """Load all Gibbs_XXXXK.csv files from csv_dir into a dictionary keyed by temperature."""
+    # Local run:
+    #   sunburst.py
+    #   csv_files/Gibbs_XXXXK.csv
+    #
+    # GitHub Pages / WASM export:
+    #   public/csv_files/Gibbs_XXXXK.csv
+    #   public/csv_files/manifest.json
+    #
+    # The manifest is needed in WASM because GitHub Pages does not provide
+    # directory listing/glob access for remote files.
+    CSV_FILES_DIR = SCRIPT_DIR / "csv_files"
+
+    def _temperature_from_filename(filename: str):
+        stem = Path(filename).stem
+        return int(stem.replace("Gibbs_", "").replace("K", ""))
+
+    def _clean_dataframe(df):
+        missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+        if missing_columns:
+            raise ValueError(f"Missing columns: {missing_columns}")
+
+        df = df[REQUIRED_COLUMNS].copy()
+
+        for col in REQUIRED_COLUMNS:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        df = df.dropna(subset=REQUIRED_COLUMNS)
+        df["sum_x"] = df["Co"] + df["Cr"] + df["Fe"] + df["Ni"]
+        df = df[np.abs(df["sum_x"] - 1.0) < 1e-6].copy()
+
+        if df.empty:
+            raise ValueError("No valid rows after composition-sum filtering.")
+
+        return df
+
+    def load_temperature_data_local(csv_dir: Path):
         files = sorted(glob.glob(str(csv_dir / "Gibbs_*.csv")))
 
         if not files:
@@ -72,44 +130,70 @@ def _(Path, glob, os, pd, np):
 
         for file_path in files:
             path = Path(file_path)
-            basename = path.stem
 
             try:
-                temperature = int(basename.replace("Gibbs_", "").replace("K", ""))
+                temperature = _temperature_from_filename(path.name)
             except ValueError:
                 skipped_files.append((str(path), "Could not extract temperature from filename."))
                 continue
 
             try:
                 df = pd.read_csv(path)
+                data[temperature] = _clean_dataframe(df)
             except Exception as exc:
-                skipped_files.append((str(path), f"Could not read CSV: {exc}"))
-                continue
-
-            missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
-            if missing_columns:
-                skipped_files.append((str(path), f"Missing columns: {missing_columns}"))
-                continue
-
-            df = df[REQUIRED_COLUMNS].copy()
-
-            for col in REQUIRED_COLUMNS:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
-
-            df = df.dropna(subset=REQUIRED_COLUMNS)
-            df["sum_x"] = df["Co"] + df["Cr"] + df["Fe"] + df["Ni"]
-            df = df[np.abs(df["sum_x"] - 1.0) < 1e-6].copy()
-
-            if df.empty:
-                skipped_files.append((str(path), "No valid rows after composition-sum filtering."))
-                continue
-
-            data[temperature] = df
+                skipped_files.append((str(path), str(exc)))
 
         temperatures = sorted(data.keys())
         return data, temperatures, skipped_files
 
-    data_by_T, temperatures, skipped_files = load_temperature_data(CSV_FILES_DIR)
+    def load_temperature_data_wasm():
+        # In exported HTML-WASM, files must be placed under public/csv_files/.
+        # A manifest is used because a remote GitHub Pages directory cannot be globbed.
+        base = mo.notebook_location()
+
+        if base is None:
+            return {}, [], [("public/csv_files", "Could not determine notebook location.")]
+
+        manifest_url = base / "public" / "csv_files" / "manifest.json"
+        data = {}
+        skipped_files = []
+
+        try:
+            from pyodide.http import open_url
+
+            manifest_text = open_url(str(manifest_url)).read()
+            csv_filenames = json.loads(manifest_text)
+        except Exception as exc:
+            return (
+                {},
+                [],
+                [
+                    (
+                        str(manifest_url),
+                        "Could not load manifest.json. Create public/csv_files/manifest.json "
+                        f"listing the Gibbs CSV filenames. Original error: {exc}",
+                    )
+                ],
+            )
+
+        for filename in csv_filenames:
+            try:
+                temperature = _temperature_from_filename(filename)
+                csv_url = base / "public" / "csv_files" / filename
+                csv_text = open_url(str(csv_url)).read()
+                df = pd.read_csv(StringIO(csv_text))
+                data[temperature] = _clean_dataframe(df)
+            except Exception as exc:
+                skipped_files.append((filename, str(exc)))
+
+        temperatures = sorted(data.keys())
+        return data, temperatures, skipped_files
+
+    if sys.platform == "emscripten":
+        data_by_T, temperatures, skipped_files = load_temperature_data_wasm()
+    else:
+        data_by_T, temperatures, skipped_files = load_temperature_data_local(CSV_FILES_DIR)
+
     return CSV_FILES_DIR, REQUIRED_COLUMNS, data_by_T, skipped_files, temperatures
 
 

@@ -340,13 +340,13 @@ def _(
         )
         data_by_T = {}
     else:
-        first_T = temperatures[0]
+        _first_loaded_T = temperatures[0]
         total_rows = sum(len(df) for df in data_by_T.values())
         data_status = mo.callout(
             (
                 f"Loaded `{len(temperatures)}` temperature files from `{csv_folder.value}` "
                 f"with `{total_rows}` valid rows. Temperature range: `{min(temperatures)}–{max(temperatures)} K`. "
-                f"Rows at first temperature `{first_T} K`: `{len(data_by_T[first_T])}`."
+                f"Rows at first temperature `{_first_loaded_T} K`: `{len(data_by_T[_first_loaded_T])}`."
             ),
             kind="success",
         )
@@ -1036,11 +1036,11 @@ def _(
     )
 
     if show_raw_data.value and data_by_T:
-        first_T = sorted(data_by_T.keys())[0]
+        _preview_T = sorted(data_by_T.keys())[0]
         output_items.extend(
             [
-                mo.md(f"## Loaded data preview at {first_T} K"),
-                data_by_T[first_T].head(50),
+                mo.md(f"## Loaded data preview at {_preview_T} K"),
+                data_by_T[_preview_T].head(50),
             ]
         )
 

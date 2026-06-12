@@ -179,9 +179,9 @@ jobs:
               <p>Select an interactive marimo app to open.</p>
 
               <div class="buttons">
-                <a class="button" href="./8D_ParallelPlot.html">8D TDT Viz</a>
+                <a class="button" href="./8D_ParallelPlot.html"> 💡 8D TDT Viz</a>
                 <a class="button" href="./MultiApp.html">MultiAppTest</a>
-                <a class="button" href="./ML_Predictions.html">Attention Surrogate</a>
+                <a class="button" href="./ML_Predictions.html">🎛️ Attention Surrogate</a>
               </div>
 
               <div class="sub">

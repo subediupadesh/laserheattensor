@@ -1,315 +1,55 @@
 # /// script
+# requires-python = ">=3.10"
 # dependencies = [
-#   "marimo>=0.13.0",
-#   "numpy",
-#   "pandas",
-#   "plotly",
+#   "marimo>=0.10.0",
+#   "numpy>=1.24",
+#   "pandas>=2.0",
+#   "plotly>=5.20",
 # ]
 # ///
 
-"""
-Marimo app for the CoCrFeNi temperature-composition-force multi-ring chart.
-
-Expected folder structure:
-
-    sunburst.py
-    csv_files/
-        Gibbs_800K.csv
-        Gibbs_1000K.csv
-        Gibbs_1200K.csv
-        ...
-
-Each CSV file must contain the columns:
-    Co, Cr, Fe, Ni, G_LIQ, G_FCC
-
-Run with:
-    marimo run sunburst.py
-"""
-
 import marimo
 
-__generated_with = "0.13.0"
-app = marimo.App(width="full")
+__generated_with = "0.23.0"
+app = marimo.App(width="full", app_title="CoCrFeNi Multi-Ring Chart")
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
-    import glob
-    import json
     import os
-    import sys
-    from io import StringIO
-    from pathlib import Path
-
-    import marimo as mo
+    import io
     import numpy as np
     import pandas as pd
-
-    return Path, StringIO, glob, json, mo, np, os, pd, sys
-
-
-@app.cell
-async def _(sys):
-    # GitHub Pages runs the app in Pyodide/WebAssembly. Plotly is not
-    # always preinstalled there, so install it in-browser before importing.
-    if sys.platform == "emscripten":
-        import micropip
-
-        await micropip.install("plotly")
-
     import plotly.graph_objects as go
+    import marimo as mo
 
-    return (go,)
+    return go, io, mo, np, os, pd
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(
-        r"""
+        """
         # 🌞 CoCrFeNi Temperature–Composition–Interface Driving Force Multi-Ring Chart
 
-        This Marimo app loads `csv_files/Gibbs_XXXXK.csv` files from the same folder as `sunburst.py`
-        and generates the same temperature–composition–force multi-ring Plotly chart.
+        This marimo app loads the same `Gibbs_<T>K.csv` thermodynamic files used by the 8D parallel-plot app,
+        then builds the temperature–composition–force multi-ring Plotly chart.
         """
     )
     return
 
 
-@app.cell
-def _(Path, StringIO, glob, json, mo, np, pd, sys):
-    try:
-        SCRIPT_DIR = Path(__file__).resolve().parent
-    except NameError:
-        SCRIPT_DIR = Path.cwd()
-
-    REQUIRED_COLUMNS = ["Co", "Cr", "Fe", "Ni", "G_LIQ", "G_FCC"]
-
-    # Local run:
-    #   sunburst.py
-    #   csv_files/Gibbs_XXXXK.csv
-    #
-    # GitHub Pages / WASM export with the current deploy-marimo.yml:
-    #   _site/csv_files/Gibbs_XXXXK.csv
-    #   _site/csv_files/manifest.json
-    #
-    # Public URL after deployment:
-    #   https://subediupadesh.github.io/laserheattensor/csv_files/Gibbs_XXXXK.csv
-    #   https://subediupadesh.github.io/laserheattensor/csv_files/manifest.json
-    #
-    # The manifest is needed in WASM because GitHub Pages does not provide
-    # directory listing/glob access for remote files.
-    CSV_FILES_DIR = SCRIPT_DIR / "csv_files"
-
-    def _temperature_from_filename(filename: str):
-        stem = Path(filename).stem
-        return int(stem.replace("Gibbs_", "").replace("K", ""))
-
-    def _clean_dataframe(df):
-        missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
-        if missing_columns:
-            raise ValueError(f"Missing columns: {missing_columns}")
-
-        df = df[REQUIRED_COLUMNS].copy()
-
-        for col in REQUIRED_COLUMNS:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-
-        df = df.dropna(subset=REQUIRED_COLUMNS)
-        df["sum_x"] = df["Co"] + df["Cr"] + df["Fe"] + df["Ni"]
-        df = df[np.abs(df["sum_x"] - 1.0) < 1e-6].copy()
-
-        if df.empty:
-            raise ValueError("No valid rows after composition-sum filtering.")
-
-        return df
-
-    def load_temperature_data_local(csv_dir: Path):
-        files = sorted(glob.glob(str(csv_dir / "Gibbs_*.csv")))
-
-        if not files:
-            return {}, [], []
-
-        data = {}
-        skipped_files = []
-
-        for file_path in files:
-            path = Path(file_path)
-
-            try:
-                temperature = _temperature_from_filename(path.name)
-            except ValueError:
-                skipped_files.append((str(path), "Could not extract temperature from filename."))
-                continue
-
-            try:
-                df = pd.read_csv(path)
-                data[temperature] = _clean_dataframe(df)
-            except Exception as exc:
-                skipped_files.append((str(path), str(exc)))
-
-        temperatures = sorted(data.keys())
-        return data, temperatures, skipped_files
-
-    def load_temperature_data_wasm():
-        # In your GitHub Action, csv_files is copied directly into _site/csv_files.
-        # Therefore the runtime URL is ./csv_files/, not ./public/csv_files/.
-        # A manifest is used because a remote GitHub Pages directory cannot be globbed.
-        base = mo.notebook_location()
-
-        if base is None:
-            return {}, [], [("csv_files", "Could not determine notebook location.")]
-
-        manifest_url = base / "csv_files" / "manifest.json"
-        data = {}
-        skipped_files = []
-
-        try:
-            from pyodide.http import open_url
-
-            manifest_text = open_url(str(manifest_url)).read()
-            csv_filenames = json.loads(manifest_text)
-        except Exception as exc:
-            return (
-                {},
-                [],
-                [
-                    (
-                        str(manifest_url),
-                        "Could not load manifest.json. Create _site/csv_files/manifest.json in the GitHub Action "
-                        f"listing the Gibbs CSV filenames. Original error: {exc}",
-                    )
-                ],
-            )
-
-        for filename in csv_filenames:
-            try:
-                temperature = _temperature_from_filename(filename)
-                csv_url = base / "csv_files" / filename
-                csv_text = open_url(str(csv_url)).read()
-                df = pd.read_csv(StringIO(csv_text))
-                data[temperature] = _clean_dataframe(df)
-            except Exception as exc:
-                skipped_files.append((filename, str(exc)))
-
-        temperatures = sorted(data.keys())
-        return data, temperatures, skipped_files
-
-    if sys.platform == "emscripten":
-        data_by_T, temperatures, skipped_files = load_temperature_data_wasm()
-    else:
-        data_by_T, temperatures, skipped_files = load_temperature_data_local(CSV_FILES_DIR)
-
-    return CSV_FILES_DIR, REQUIRED_COLUMNS, data_by_T, skipped_files, temperatures
-
-
-@app.cell
-def _(CSV_FILES_DIR, data_by_T, mo, skipped_files, temperatures):
-    if not data_by_T:
-        load_status = mo.vstack(
-            [
-                mo.md(f"## ❌ No valid CSV files found in `{CSV_FILES_DIR}`"),
-                mo.md("Expected files such as `csv_files/Gibbs_1000K.csv`."),
-                mo.md("Required columns: `Co`, `Cr`, `Fe`, `Ni`, `G_LIQ`, `G_FCC`."),
-                mo.md(
-                    "\n".join(
-                        [f"- `{file_path}`: {reason}" for file_path, reason in skipped_files]
-                    )
-                    if skipped_files
-                    else "No CSV files were found."
-                ),
-            ]
-        )
-    else:
-        skipped_text = ""
-        if skipped_files:
-            skipped_text = "\n\n### ⚠️ Skipped files\n" + "\n".join(
-                [f"- `{file_path}`: {reason}" for file_path, reason in skipped_files]
-            )
-
-        load_status = mo.md(
-            f"""
-            ### 📊 Loaded data
-
-            - **CSV folder:** `{CSV_FILES_DIR}`
-            - **Temperature files:** {len(temperatures)}
-            - **Temperature range:** {min(temperatures)}–{max(temperatures)} K
-            - **Rows at first temperature:** {len(data_by_T[temperatures[0]])}
-            {skipped_text}
-            """
-        )
-
-    load_status
-    return load_status
-
-
-@app.cell
-def _():
-    PURE_VM = {
-        "Co": 6.80e-6,
-        "Cr": 7.23e-6,
-        "Fe": 7.09e-6,
-        "Ni": 6.59e-6,
-    }
-
-    T_MIN_NORMALIZE = 300
-    T_MAX_NORMALIZE = 3300
-    GAMMA_LIQUID_FCC = 0.6
-    DEFAULT_DV = 1e-18
-
-    GRAIN_SHAPE_FACTORS = {
-        "Spherical (k=2)": 2.0,
-        "Tetrakaidecahedron (k=3)": 3.0,
-        "Equiaxed cubic (k=6)": 6.0,
-    }
-
-    def composition_dependent_vm(x_co, x_cr, x_fe, x_ni):
-        return (
-            x_co * PURE_VM["Co"]
-            + x_cr * PURE_VM["Cr"]
-            + x_fe * PURE_VM["Fe"]
-            + x_ni * PURE_VM["Ni"]
-        )
-
-    def normalize_temperature(T):
-        return (T - T_MIN_NORMALIZE) / (T_MAX_NORMALIZE - T_MIN_NORMALIZE)
-
-    def compute_Sv(grain_size_m, shape_factor):
-        return shape_factor / grain_size_m
-
-    def compute_total_area(Sv, sample_volume_m3):
-        return Sv * sample_volume_m3
-
-    def compute_curvature_radius(grain_size_m):
-        return grain_size_m / 4.0
-
-    def compute_capillary_pressure(gamma, curvature_r):
-        return (2.0 * gamma) / curvature_r
-
-    def compute_net_pressure(P_chem, P_capillary):
-        return P_chem - P_capillary
-
-    def compute_differential_force(P_net, Sv, dV):
-        return P_net * Sv * dV
-
-    return (
-        DEFAULT_DV,
-        GAMMA_LIQUID_FCC,
-        GRAIN_SHAPE_FACTORS,
-        T_MAX_NORMALIZE,
-        T_MIN_NORMALIZE,
-        composition_dependent_vm,
-        compute_Sv,
-        compute_capillary_pressure,
-        compute_curvature_radius,
-        compute_differential_force,
-        compute_net_pressure,
-        compute_total_area,
-        normalize_temperature,
+@app.cell(hide_code=True)
+def _(mo):
+    csv_folder = mo.ui.text(
+        value="https://subediupadesh.github.io/laserheattensor/csv_files/",
+        label="CSV folder",
     )
 
+    T_min_input = mo.ui.number(value=300, step=100, label="Minimum temperature [K]")
+    T_max_input = mo.ui.number(value=3300, step=100, label="Maximum temperature [K]")
+    T_step_input = mo.ui.number(value=100, step=100, label="Temperature step [K]")
 
-@app.cell
-def _(GAMMA_LIQUID_FCC, GRAIN_SHAPE_FACTORS, mo):
     area_mode = mo.ui.dropdown(
         options=["Grain Size Derived (Sv x V)", "Direct Input (A)"],
         value="Grain Size Derived (Sv x V)",
@@ -364,24 +104,18 @@ def _(GAMMA_LIQUID_FCC, GRAIN_SHAPE_FACTORS, mo):
         label="Compositions per temperature",
     )
 
-    sample_seed = mo.ui.number(
-        start=0,
-        stop=999999,
-        step=1,
-        value=42,
-        label="Random seed",
-    )
+    sample_seed = mo.ui.number(value=42, step=1, label="Random seed")
 
     grain_size_um = mo.ui.number(
         start=0.001,
         stop=10000.0,
         step=0.1,
         value=2.5,
-        label="Average grain size d (μm)",
+        label="Average grain size d [μm]",
     )
 
     shape_choice = mo.ui.dropdown(
-        options=list(GRAIN_SHAPE_FACTORS.keys()),
+        options=["Spherical (k=2)", "Tetrakaidecahedron (k=3)", "Equiaxed cubic (k=6)"],
         value="Tetrakaidecahedron (k=3)",
         label="Grain shape factor",
     )
@@ -391,7 +125,7 @@ def _(GAMMA_LIQUID_FCC, GRAIN_SHAPE_FACTORS, mo):
         stop=1e6,
         step=0.1,
         value=1.0,
-        label="Sample volume V (cm³)",
+        label="Sample volume V [cm³]",
     )
 
     dV_um3 = mo.ui.number(
@@ -399,15 +133,15 @@ def _(GAMMA_LIQUID_FCC, GRAIN_SHAPE_FACTORS, mo):
         stop=1000.0,
         step=0.1,
         value=1.0,
-        label="Local volume dV (μm³)",
+        label="Local volume dV [μm³]",
     )
 
     gamma_input = mo.ui.number(
         start=0.01,
         stop=5.0,
         step=0.01,
-        value=GAMMA_LIQUID_FCC,
-        label="γ Liquid/FCC (N/m)",
+        value=0.6,
+        label="γ Liquid/FCC [N/m]",
     )
 
     use_capillary = mo.ui.checkbox(
@@ -420,11 +154,50 @@ def _(GAMMA_LIQUID_FCC, GRAIN_SHAPE_FACTORS, mo):
         stop=1e2,
         step=1e-10,
         value=1e-8,
-        label="Reference area A (m²)",
+        label="Reference area A [m²]",
     )
 
+    show_raw_data = mo.ui.checkbox(value=False, label="Show loaded dataframe preview")
+    show_debug = mo.ui.checkbox(value=False, label="Show debug summary")
+
+    sidebar = mo.sidebar(
+        mo.vstack(
+            [
+                mo.md("## Data settings"),
+                csv_folder,
+                T_min_input,
+                T_max_input,
+                T_step_input,
+                mo.md("## Chart settings"),
+                area_mode,
+                temp_cmap,
+                force_cmap,
+                sb_sample,
+                sample_seed,
+                mo.md("## Grain-size / force settings"),
+                grain_size_um,
+                shape_choice,
+                sample_volume_cm3,
+                dV_um3,
+                gamma_input,
+                use_capillary,
+                sb_area_input,
+                mo.md("## Display"),
+                show_raw_data,
+                show_debug,
+            ],
+            gap=1,
+        )
+    )
+
+    sidebar
+
     return (
+        T_max_input,
+        T_min_input,
+        T_step_input,
         area_mode,
+        csv_folder,
         dV_um3,
         force_cmap,
         gamma_input,
@@ -434,72 +207,223 @@ def _(GAMMA_LIQUID_FCC, GRAIN_SHAPE_FACTORS, mo):
         sb_area_input,
         sb_sample,
         shape_choice,
+        show_debug,
+        show_raw_data,
         temp_cmap,
         use_capillary,
     )
 
 
-@app.cell
+@app.cell(hide_code=True)
+def _(io, np, os, pd):
+    REQUIRED_COLUMNS = ["Co", "Cr", "Fe", "Ni", "G_LIQ", "G_FCC"]
+
+    def safe_numeric(value, fallback):
+        try:
+            if value is None:
+                return fallback
+            if isinstance(value, str) and value.strip() == "":
+                return fallback
+            return value
+        except Exception:
+            return fallback
+
+    def clean_gibbs_dataframe(df):
+        missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+        if missing_columns:
+            raise ValueError(f"Missing required columns: {missing_columns}")
+
+        df = df[REQUIRED_COLUMNS].copy()
+
+        for col in REQUIRED_COLUMNS:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        df = df.dropna(subset=REQUIRED_COLUMNS)
+        df["sum_x"] = df["Co"] + df["Cr"] + df["Fe"] + df["Ni"]
+        df = df[np.abs(df["sum_x"] - 1.0) < 1e-6].copy()
+
+        if df.empty:
+            raise ValueError("No valid rows after enforcing Co + Cr + Fe + Ni = 1.")
+
+        return df
+
+    def load_temperature_data(csv_folder_value, T_min_value, T_max_value, T_step_value):
+        temperatures_to_try = list(
+            range(int(T_min_value), int(T_max_value) + 1, int(T_step_value))
+        )
+
+        data_by_T = {}
+        missing_files = []
+
+        csv_folder_value = str(csv_folder_value).strip().rstrip("/")
+
+        try:
+            from pyodide.http import open_url
+            running_in_wasm = True
+        except ImportError:
+            open_url = None
+            running_in_wasm = False
+
+        for T in temperatures_to_try:
+            filename = f"Gibbs_{T}K.csv"
+
+            if running_in_wasm:
+                file_path = f"{csv_folder_value}/{filename}"
+
+                try:
+                    csv_text = open_url(file_path).read()
+                    df_T = pd.read_csv(io.StringIO(csv_text))
+                except Exception as exc:
+                    missing_files.append(f"{file_path} [browser read error: {exc}]")
+                    continue
+
+            else:
+                if csv_folder_value.startswith("http://") or csv_folder_value.startswith("https://"):
+                    file_path = f"{csv_folder_value}/{filename}"
+                else:
+                    file_path = os.path.join(csv_folder_value, filename)
+
+                try:
+                    df_T = pd.read_csv(file_path)
+                except Exception as exc:
+                    missing_files.append(f"{file_path} [local/web read error: {exc}]")
+                    continue
+
+            try:
+                data_by_T[T] = clean_gibbs_dataframe(df_T)
+            except Exception as exc:
+                missing_files.append(f"{file_path} [data validation error: {exc}]")
+                continue
+
+        temperatures = sorted(data_by_T.keys())
+
+        if len(temperatures) == 0:
+            return None, [], missing_files
+
+        return data_by_T, temperatures, missing_files
+
+    return clean_gibbs_dataframe, load_temperature_data, safe_numeric
+
+
+@app.cell(hide_code=True)
 def _(
-    area_mode,
-    dV_um3,
-    force_cmap,
-    gamma_input,
-    grain_size_um,
+    T_max_input,
+    T_min_input,
+    T_step_input,
+    csv_folder,
+    load_temperature_data,
     mo,
-    sample_seed,
-    sample_volume_cm3,
-    sb_area_input,
-    sb_sample,
-    shape_choice,
-    temp_cmap,
-    use_capillary,
+    safe_numeric,
 ):
-    main_controls = mo.hstack(
-        [area_mode, temp_cmap, force_cmap, sb_sample, sample_seed],
-        justify="start",
-        gap=1,
-        wrap=True,
+    T_min_value = int(safe_numeric(T_min_input.value, 300))
+    T_max_value = int(safe_numeric(T_max_input.value, 3300))
+    T_step_value = int(safe_numeric(T_step_input.value, 100))
+
+    if T_step_value <= 0:
+        T_step_value = 100
+
+    data_by_T, temperatures, missing_files = load_temperature_data(
+        csv_folder.value,
+        T_min_value,
+        T_max_value,
+        T_step_value,
     )
 
-    if area_mode.value == "Grain Size Derived (Sv x V)":
-        force_controls = mo.vstack(
-            [
-                mo.md("### Grain-size-derived force parameters"),
-                mo.hstack(
-                    [
-                        grain_size_um,
-                        shape_choice,
-                        sample_volume_cm3,
-                        dV_um3,
-                        gamma_input,
-                    ],
-                    justify="start",
-                    gap=1,
-                    wrap=True,
-                ),
-                use_capillary,
-            ]
+    if data_by_T is None:
+        data_status = mo.callout(
+            (
+                "No valid CSV files were found. Check folder path and filename pattern: "
+                f"`Gibbs_<T>K.csv`. Current folder: `{csv_folder.value}`. "
+                "Open the `Missing files` section below to see browser/local read errors."
+            ),
+            kind="danger",
         )
+        data_by_T = {}
     else:
-        force_controls = mo.vstack(
-            [
-                mo.md("### Direct-area force parameters"),
-                sb_area_input,
-            ]
+        first_T = temperatures[0]
+        total_rows = sum(len(df) for df in data_by_T.values())
+        data_status = mo.callout(
+            (
+                f"Loaded `{len(temperatures)}` temperature files from `{csv_folder.value}` "
+                f"with `{total_rows}` valid rows. Temperature range: `{min(temperatures)}–{max(temperatures)} K`. "
+                f"Rows at first temperature `{first_T} K`: `{len(data_by_T[first_T])}`."
+            ),
+            kind="success",
         )
 
-    mo.vstack(
-        [
-            mo.md("## Chart controls"),
-            main_controls,
-            force_controls,
-        ]
+    missing_status = None
+
+    if missing_files:
+        preview = "\n".join([f"- `{item}`" for item in missing_files[:40]])
+        extra = "" if len(missing_files) <= 40 else f"\n- ... and {len(missing_files) - 40} more"
+        missing_status = mo.accordion({"Missing / skipped files": mo.md(preview + extra)})
+
+    return data_by_T, data_status, missing_files, missing_status, temperatures
+
+
+@app.cell(hide_code=True)
+def _():
+    PURE_VM = {
+        "Co": 6.80e-6,
+        "Cr": 7.23e-6,
+        "Fe": 7.09e-6,
+        "Ni": 6.59e-6,
+    }
+
+    T_MIN_NORMALIZE = 300
+    T_MAX_NORMALIZE = 3300
+    DEFAULT_DV = 1e-18
+
+    GRAIN_SHAPE_FACTORS = {
+        "Spherical (k=2)": 2.0,
+        "Tetrakaidecahedron (k=3)": 3.0,
+        "Equiaxed cubic (k=6)": 6.0,
+    }
+
+    def composition_dependent_vm(x_co, x_cr, x_fe, x_ni):
+        return (
+            x_co * PURE_VM["Co"]
+            + x_cr * PURE_VM["Cr"]
+            + x_fe * PURE_VM["Fe"]
+            + x_ni * PURE_VM["Ni"]
+        )
+
+    def normalize_temperature(T):
+        return (T - T_MIN_NORMALIZE) / (T_MAX_NORMALIZE - T_MIN_NORMALIZE)
+
+    def compute_Sv(grain_size_m, shape_factor):
+        return shape_factor / grain_size_m
+
+    def compute_total_area(Sv, sample_volume_m3):
+        return Sv * sample_volume_m3
+
+    def compute_curvature_radius(grain_size_m):
+        return grain_size_m / 4.0
+
+    def compute_capillary_pressure(gamma, curvature_r):
+        return (2.0 * gamma) / curvature_r
+
+    def compute_net_pressure(P_chem, P_capillary):
+        return P_chem - P_capillary
+
+    def compute_differential_force(P_net, Sv, dV):
+        return P_net * Sv * dV
+
+    return (
+        DEFAULT_DV,
+        GRAIN_SHAPE_FACTORS,
+        composition_dependent_vm,
+        compute_Sv,
+        compute_capillary_pressure,
+        compute_curvature_radius,
+        compute_differential_force,
+        compute_net_pressure,
+        compute_total_area,
+        normalize_temperature,
     )
-    return force_controls, main_controls
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     DEFAULT_DV,
     GRAIN_SHAPE_FACTORS,
@@ -549,7 +473,7 @@ def _(
     )
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(Sv, area_mode, dV, interface_area, mo):
     if area_mode.value == "Grain Size Derived (Sv x V)":
         parameter_summary = mo.md(
@@ -574,7 +498,7 @@ def _(Sv, area_mode, dV, interface_area, mo):
     return parameter_summary
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     Sv,
     area_mode,
@@ -590,8 +514,6 @@ def _(
     gamma,
     go,
     grain_size_m,
-    interface_area,
-    mo,
     normalize_temperature,
     np,
     sample_seed,
@@ -603,45 +525,29 @@ def _(
     if not data_by_T:
         fig = None
         debug_summary = {}
-        chart_output = mo.md("## ❌ No valid data loaded; chart cannot be generated.")
     else:
         temperatures_sorted = sorted(temperatures)
         n_temp = len(temperatures_sorted)
 
-        # ============================================================
-        # RING GEOMETRY
-        # ============================================================
         temp_ring_base = 0.00
         temp_ring_thickness = 0.85
-
         comp_ring_base = 1.02
         comp_ring_thickness = 1.25
-
         force_ring_base = 2.45
         force_ring_thickness = 0.90
-
         temp_width = 360.0 / n_temp
 
-        # ============================================================
-        # STYLE SETTINGS
-        # ============================================================
         FONT_FAMILY = "Arial Black, Arial, sans-serif"
-
         TITLE_FONT_SIZE = 30
         SUBTITLE_FONT_SIZE = 18
         LEGEND_FONT_SIZE = 19
         COLORBAR_TITLE_SIZE = 21
         COLORBAR_TICK_SIZE = 17
         HOVER_FONT_SIZE = 18
-
         RING_BORDER_COLOR = "rgba(15,15,15,0.98)"
         RING_BORDER_WIDTH = 1.9
-
         COMPOSITION_BORDER_COLOR = "rgba(255,255,255,0.98)"
         COMPOSITION_BORDER_WIDTH = 1.15
-
-        PAPER_BG = "white"
-        PLOT_BG = "white"
 
         comp_colors_map = {
             "Co": "#0057B8",
@@ -650,9 +556,6 @@ def _(
             "Ni": "#F4C430",
         }
 
-        # ============================================================
-        # DATA CONTAINERS
-        # ============================================================
         temp_theta = []
         temp_widths = []
         temp_r = []
@@ -676,9 +579,6 @@ def _(
 
         rng = np.random.default_rng(int(sample_seed.value))
 
-        # ============================================================
-        # BUILD DATA
-        # ============================================================
         for iT, T_sun in enumerate(temperatures_sorted):
             theta_start = iT * temp_width
             theta_center_temp = theta_start + temp_width / 2.0
@@ -806,9 +706,6 @@ def _(
                     ]
                 )
 
-        # ============================================================
-        # COLOR SCALE LIMITS
-        # ============================================================
         if len(force_colors) > 0:
             max_abs_force = max(
                 abs(float(np.nanmin(force_colors))),
@@ -819,19 +716,12 @@ def _(
         else:
             max_abs_force = 1.0
 
-        temp_min_tick = float(min(temperatures_sorted))
-        temp_max_tick = float(max(temperatures_sorted))
-        temp_tickvals = np.linspace(temp_min_tick, temp_max_tick, 5)
+        temp_tickvals = np.linspace(float(min(temperatures_sorted)), float(max(temperatures_sorted)), 5)
         temp_ticktext = [f"{v:.0f}" for v in temp_tickvals]
 
-        force_min_tick = -float(max_abs_force)
-        force_max_tick = float(max_abs_force)
-        force_tickvals = np.linspace(force_min_tick, force_max_tick, 5)
+        force_tickvals = np.linspace(-float(max_abs_force), float(max_abs_force), 5)
         force_ticktext = [f"{v:.2e}" for v in force_tickvals]
 
-        # ============================================================
-        # BUILD FIGURE
-        # ============================================================
         fig = go.Figure()
 
         fig.add_trace(
@@ -1028,8 +918,8 @@ def _(
                 font=dict(size=TITLE_FONT_SIZE, family=FONT_FAMILY, color="black"),
             ),
             template="plotly_white",
-            paper_bgcolor=PAPER_BG,
-            plot_bgcolor=PLOT_BG,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
             height=1080,
             width=1250,
             margin=dict(t=160, b=45, l=45, r=285),
@@ -1055,7 +945,7 @@ def _(
                 font=dict(size=HOVER_FONT_SIZE, family=FONT_FAMILY, color="black"),
             ),
             polar=dict(
-                bgcolor="white",
+                bgcolor="rgba(0,0,0,0)",
                 radialaxis=dict(
                     visible=False,
                     range=[0, force_ring_base + force_ring_thickness + 0.30],
@@ -1092,34 +982,73 @@ def _(
             },
         }
 
-        chart_output = fig
-
-    return chart_output, debug_summary, fig
+    return debug_summary, fig
 
 
-@app.cell
-def _(chart_output, mo):
-    mo.vstack(
+@app.cell(hide_code=True)
+def _(fig, mo):
+    if fig is None:
+        interactive_plot = mo.callout("Chart cannot be generated because no valid data was loaded.", kind="danger")
+    else:
+        interactive_plot = mo.ui.plotly(
+            fig,
+            config={
+                "displaylogo": False,
+                "responsive": True,
+                "toImageButtonOptions": {
+                    "format": "png",
+                    "filename": "CoCrFeNi_temperature_composition_force_multiring_transparent",
+                    "height": 2200,
+                    "width": 2400,
+                    "scale": 1,
+                },
+            },
+        )
+
+    return interactive_plot,
+
+
+@app.cell(hide_code=True)
+def _(
+    data_by_T,
+    data_status,
+    interactive_plot,
+    missing_status,
+    mo,
+    parameter_summary,
+    show_raw_data,
+):
+    output_items = [data_status]
+
+    if missing_status is not None:
+        output_items.append(missing_status)
+
+    output_items.extend(
         [
+            parameter_summary,
             mo.md("## 🌞 Multi-Ring Mechanical Force–Thermodynamic State Space Chart"),
-            mo.md(
-                "Inner ring = Temperature, middle ring = Co/Cr/Fe/Ni composition, "
-                "outer ring = interface driving force. Use the Plotly toolbar to zoom, pan, export, or reset the view."
+            mo.callout(
+                "Use the Plotly toolbar camera button to download the current figure as PNG. The figure background is transparent.",
+                kind="info",
             ),
-            chart_output,
+            interactive_plot,
         ]
     )
+
+    if show_raw_data.value and data_by_T:
+        first_T = sorted(data_by_T.keys())[0]
+        output_items.extend(
+            [
+                mo.md(f"## Loaded data preview at {first_T} K"),
+                data_by_T[first_T].head(50),
+            ]
+        )
+
+    mo.vstack(output_items, gap=1)
     return
 
 
-@app.cell
-def _(debug_summary, mo):
-    show_debug = mo.ui.checkbox(value=False, label="Show debug summary")
-    show_debug
-    return show_debug,
-
-
-@app.cell
+@app.cell(hide_code=True)
 def _(debug_summary, mo, show_debug):
     if show_debug.value:
         mo.vstack([mo.md("### Debug summary"), mo.json(debug_summary)])

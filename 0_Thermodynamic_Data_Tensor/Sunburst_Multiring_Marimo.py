@@ -88,9 +88,13 @@ def _(Path, StringIO, glob, json, mo, np, pd, sys):
     #   sunburst.py
     #   csv_files/Gibbs_XXXXK.csv
     #
-    # GitHub Pages / WASM export:
-    #   public/csv_files/Gibbs_XXXXK.csv
-    #   public/csv_files/manifest.json
+    # GitHub Pages / WASM export with the current deploy-marimo.yml:
+    #   _site/csv_files/Gibbs_XXXXK.csv
+    #   _site/csv_files/manifest.json
+    #
+    # Public URL after deployment:
+    #   https://subediupadesh.github.io/laserheattensor/csv_files/Gibbs_XXXXK.csv
+    #   https://subediupadesh.github.io/laserheattensor/csv_files/manifest.json
     #
     # The manifest is needed in WASM because GitHub Pages does not provide
     # directory listing/glob access for remote files.
@@ -147,14 +151,15 @@ def _(Path, StringIO, glob, json, mo, np, pd, sys):
         return data, temperatures, skipped_files
 
     def load_temperature_data_wasm():
-        # In exported HTML-WASM, files must be placed under public/csv_files/.
+        # In your GitHub Action, csv_files is copied directly into _site/csv_files.
+        # Therefore the runtime URL is ./csv_files/, not ./public/csv_files/.
         # A manifest is used because a remote GitHub Pages directory cannot be globbed.
         base = mo.notebook_location()
 
         if base is None:
-            return {}, [], [("public/csv_files", "Could not determine notebook location.")]
+            return {}, [], [("csv_files", "Could not determine notebook location.")]
 
-        manifest_url = base / "public" / "csv_files" / "manifest.json"
+        manifest_url = base / "csv_files" / "manifest.json"
         data = {}
         skipped_files = []
 
@@ -170,7 +175,7 @@ def _(Path, StringIO, glob, json, mo, np, pd, sys):
                 [
                     (
                         str(manifest_url),
-                        "Could not load manifest.json. Create public/csv_files/manifest.json "
+                        "Could not load manifest.json. Create _site/csv_files/manifest.json in the GitHub Action "
                         f"listing the Gibbs CSV filenames. Original error: {exc}",
                     )
                 ],
@@ -179,7 +184,7 @@ def _(Path, StringIO, glob, json, mo, np, pd, sys):
         for filename in csv_filenames:
             try:
                 temperature = _temperature_from_filename(filename)
-                csv_url = base / "public" / "csv_files" / filename
+                csv_url = base / "csv_files" / filename
                 csv_text = open_url(str(csv_url)).read()
                 df = pd.read_csv(StringIO(csv_text))
                 data[temperature] = _clean_dataframe(df)

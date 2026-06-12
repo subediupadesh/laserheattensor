@@ -48,7 +48,20 @@ jobs:
       - name: Copy thermodynamic CSV files
         run: |
           cp -r 0_Thermodynamic_Data_Tensor/csv_files _site/csv_files
+      - name: Create thermodynamic CSV manifest
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
 
+          root = Path("_site/csv_files")
+          files = sorted(p.name for p in root.glob("Gibbs_*.csv"))
+
+          with open(root / "manifest.json", "w", encoding="utf-8") as f:
+              json.dump(files, f, indent=2)
+
+          print(json.dumps(files, indent=2))
+          PY
       - name: Copy ML data files
         run: |
           mkdir -p _site/MLDATA

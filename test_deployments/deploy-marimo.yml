@@ -33,10 +33,6 @@ jobs:
         run: |
           uvx marimo export html-wasm 0_Thermodynamic_Data_Tensor/8D_Parallel_Plot_Marimo.py -o _site/8D_ParallelPlot.html --mode run
 
-      - name: Export Sunburst Multi-Ring Chart app
-        run: |
-          uvx marimo export html-wasm 0_Thermodynamic_Data_Tensor/Sunburst_Multiring_Marimo.py -o _site/Sunburst_Multiring.html --mode run
-
       - name: Export MultiApp
         run: |
           uvx marimo export html-wasm 0_Thermodynamic_Data_Tensor/MultiAppTest.py -o _site/MultiApp.html --mode run
@@ -117,7 +113,7 @@ jobs:
                 margin: 0;
                 min-height: 100vh;
                 font-family: Arial, Helvetica, sans-serif;
-                background: radial-gradient(circle at top left, #fff7ed, transparent 30%), linear-gradient(135deg, #eef2ff, #ecfeff);
+                background: linear-gradient(135deg, #f6f8fb, #e8edf5);
                 display: flex;
                 align-items: center;
                 justify-content: center;
@@ -130,7 +126,7 @@ jobs:
                 background: white;
                 border-radius: 20px;
                 padding: 48px;
-                box-shadow: 0 24px 60px rgba(31, 41, 55, 0.14);
+                box-shadow: 0 20px 50px rgba(0, 0, 0, 0.12);
                 text-align: center;
               }
 
@@ -154,37 +150,19 @@ jobs:
 
               a.button {
                 text-decoration: none;
+                background: #111827;
                 color: white;
                 padding: 18px 30px;
-                border-radius: 16px;
+                border-radius: 12px;
                 font-size: 1.05rem;
-                font-weight: 700;
+                font-weight: 600;
                 min-width: 220px;
-                transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
-                box-shadow: 0 10px 25px rgba(31, 41, 55, 0.18);
-              }
-
-              a.button:nth-child(1) {
-                background: linear-gradient(135deg, #2563eb, #7c3aed);
-              }
-
-              a.button:nth-child(2) {
-                background: linear-gradient(135deg, #f97316, #facc15);
-                color: #1f2937;
-              }
-
-              a.button:nth-child(3) {
-                background: linear-gradient(135deg, #06b6d4, #10b981);
-              }
-
-              a.button:nth-child(4) {
-                background: linear-gradient(135deg, #ec4899, #8b5cf6);
+                transition: transform 0.15s ease, box-shadow 0.15s ease;
               }
 
               a.button:hover {
-                transform: translateY(-3px) scale(1.02);
-                filter: brightness(1.05);
-                box-shadow: 0 14px 30px rgba(31, 41, 55, 0.26);
+                transform: translateY(-2px);
+                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18);
               }
 
               .sub {
@@ -201,9 +179,8 @@ jobs:
               <p>Select an interactive marimo app to open.</p>
 
               <div class="buttons">
-                <a class="button" href="./8D_ParallelPlot.html">💡 8D TDT Viz</a>
-                <a class="button" href="./Sunburst_Multiring.html">🌞 Multi-Ring Chart</a>
-                <a class="button" href="./MultiApp.html">🧪 MultiAppTest</a>
+                <a class="button" href="./8D_ParallelPlot.html"> 💡 8D TDT Viz</a>
+                <a class="button" href="./MultiApp.html">MultiAppTest</a>
                 <a class="button" href="./ML_Predictions.html">🎛️ Attention Surrogate</a>
               </div>
 
